@@ -48,14 +48,11 @@ export default function DesignDashboard() {
         querySnapshot.forEach((docSnap) =>
           fetchedDesigns.push({ id: docSnap.id, ...docSnap.data() })
         );
-        console.log(fetchedDesigns);
-
-        // const filtered = fetchedDesigns.filter(
-        //   (d) => d.category === selectedCategory && d.type === selectedType
-        // );
-        // setDesigns(filtered);
-
-        setDesigns(fetchedDesigns); // Show all designs
+        // Apply filter for category and type
+        const filtered = fetchedDesigns.filter(
+          (d) => d.category === selectedCategory && d.type === selectedType
+        );
+        setDesigns(filtered);
       } catch (error) {
         console.error("Error loading designs:", error);
       }
@@ -93,6 +90,22 @@ export default function DesignDashboard() {
   // --- Delete design ---
   const handleDeleteDesign = async (id) => {
     try {
+      const design = designs.find((d) => d.id === id);
+
+      // Delete images from ImgBB via Netlify function
+      if (design?.images) {
+        for (const img of design.images) {
+          if (img.deleteUrl) {
+            await fetch("/.netlify/functions/deleteImg", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ deleteUrl: img.deleteUrl }),
+            });
+          }
+        }
+      }
+
+      // Delete design from Firestore
       await deleteDoc(doc(db, "designs", id));
       setDesigns((prev) => prev.filter((d) => d.id !== id));
     } catch (error) {

@@ -2,7 +2,7 @@ export default function DesignCard({ design, onView, onDelete }) {
   return (
     <div className="card shadow-sm border-0">
       <img
-        src={design.images[0]}
+        src={design.images[0]?.url}
         alt={design.title}
         className="card-img-top rounded"
         style={{ height: "220px", objectFit: "cover" }}

@@ -1,7 +1,14 @@
 import { useState } from "react";
-import { db, storage } from "../Firebase";
-import { collection, addDoc, updateDoc, doc } from "firebase/firestore";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { db } from "../Firebase";
+import {
+  collection,
+  addDoc,
+  updateDoc,
+  doc,
+  getDocs,
+  query,
+  where,
+} from "firebase/firestore";
 
 export default function DesignForm({
   onSave,
@@ -10,11 +17,12 @@ export default function DesignForm({
 }) {
   const [title, setTitle] = useState(existingDesign?.title || "");
   const [type, setType] = useState(existingDesign?.type || "Normal");
-  const [images, setImages] = useState([]);
+  const [images, setImages] = useState(existingDesign?.images || []);
   const [description, setDescription] = useState(
     existingDesign?.description || ""
   );
   const [features, setFeatures] = useState(existingDesign?.features || [""]);
+  const [uploading, setUploading] = useState(false);
 
   const handleFeatureChange = (index, value) => {
     const updated = [...features];
@@ -24,59 +32,131 @@ export default function DesignForm({
 
   const handleAddFeature = () => setFeatures([...features, ""]);
 
-  const handleImageChange = (e) => {
-    setImages([...e.target.files]);
+  const handleImageChange = async (e) => {
+    const files = Array.from(e.target.files);
+
+    // Check if adding these files exceeds the limit
+    if (images.length + files.length > 4) {
+      alert(
+        `You can only upload up to 4 images. You already have ${images.length}.`
+      );
+      return;
+    }
+
+    // Filter out files larger than 5MB
+    const filteredFiles = files.filter((file) => {
+      if (file.size > 5 * 1024 * 1024) {
+        alert(
+          `File "${file.name}" is larger than 5MB and will not be uploaded.`
+        );
+        return false;
+      }
+      return true;
+    });
+
+    if (filteredFiles.length === 0) return;
+
+    setUploading(true);
+
+    try {
+      const uploadedUrls = [];
+
+      for (const file of filteredFiles) {
+        const formData = new FormData();
+        formData.append("image", file);
+
+        const res = await fetch(
+          `https://api.imgbb.com/1/upload?key=bd847668268f2ce1588c112b23d28efc`,
+          { method: "POST", body: formData }
+        );
+
+        const data = await res.json();
+        if (data.success) {
+          uploadedUrls.push({
+            url: data.data.url,
+            deleteUrl: data.data.delete_url, // store this
+          });
+        } else {
+          console.error("Upload failed:", data);
+        }
+      }
+
+      setImages((prev) => [...prev, ...uploadedUrls]);
+    } catch (error) {
+      console.error("Error uploading images:", error);
+      alert("❌ Image upload failed. Check console for details.");
+    } finally {
+      setUploading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Upload images to Firebase Storage
-    const uploadedUrls = [];
-    for (const image of images) {
-      const storageRef = ref(storage, `designs/${Date.now()}-${image.name}`);
-      const uploadTask = await uploadBytesResumable(storageRef, image);
-      const url = await getDownloadURL(uploadTask.ref);
-      uploadedUrls.push(url);
-    }
-
-    // If no images uploaded, show alert and return
-    if (uploadedUrls.length === 0) {
-      alert("Please upload at least one image.");
-      return;
-    }
-
-    const designData = {
-      title,
-      type,
-      description,
-      features,
-      images: uploadedUrls,
-      createdAt: new Date(),
-      category: selectedCategory, // <-- Add category here
-    };
+    if (uploading) return; // prevent double submit
+    setUploading(true);
 
     try {
+      if (images.length === 0 && !existingDesign) {
+        alert("Please select at least one image.");
+        setUploading(false);
+        return;
+      }
+
+      // Check for duplicate title in the same category (only for new designs)
+      if (!existingDesign) {
+        const q = query(
+          collection(db, "designs"),
+          where("title", "==", title),
+          where("category", "==", selectedCategory)
+        );
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+          alert("A design with this title already exists in this category!");
+          setUploading(false);
+          return;
+        }
+      }
+
+      const designData = {
+        title,
+        type,
+        description,
+        features,
+        images,
+        createdAt: new Date(),
+        category: selectedCategory,
+      };
+
       if (existingDesign) {
-        // Update existing
         const docRef = doc(db, "designs", existingDesign.id);
         await updateDoc(docRef, designData);
         onSave({ ...existingDesign, ...designData });
       } else {
-        // Add new design
         const docRef = await addDoc(collection(db, "designs"), designData);
         onSave({ ...designData, id: docRef.id });
       }
+
+      alert("✅ Design saved successfully!");
+      setTitle("");
+      setDescription("");
+      setFeatures([""]);
+      setImages([]);
     } catch (error) {
       console.error("Error saving design:", error);
-      alert("Error saving design. Please check your connection and try again.");
+      alert("❌ Save failed. Check console for details.");
+    } finally {
+      setUploading(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="border p-3 rounded mb-4">
+    <form
+      onSubmit={handleSubmit}
+      className="border p-3 rounded mb-4 bg-white shadow-sm"
+    >
       <div className="mb-2">
-        <label className="form-label">Title</label>
+        <label className="form-label fw-semibold">Title</label>
         <input
           type="text"
           className="form-control"
@@ -87,7 +167,7 @@ export default function DesignForm({
       </div>
 
       <div className="mb-2">
-        <label className="form-label">Type</label>
+        <label className="form-label fw-semibold">Type</label>
         <select
           className="form-select"
           value={type}
@@ -100,7 +180,7 @@ export default function DesignForm({
       </div>
 
       <div className="mb-2">
-        <label className="form-label">Description</label>
+        <label className="form-label fw-semibold">Description</label>
         <textarea
           className="form-control"
           value={description}
@@ -110,7 +190,7 @@ export default function DesignForm({
       </div>
 
       <div className="mb-2">
-        <label className="form-label">Features</label>
+        <label className="form-label fw-semibold">Features</label>
         {features.map((feature, idx) => (
           <input
             key={idx}
@@ -125,22 +205,45 @@ export default function DesignForm({
           className="btn btn-sm btn-outline-secondary mt-1"
           onClick={handleAddFeature}
         >
-          Add Feature
+          + Add Feature
         </button>
       </div>
 
       <div className="mb-3">
-        <label className="form-label">Images</label>
+        <label className="form-label fw-semibold">Images</label>
+        <small className="text-muted d-block mb-1">
+          You can upload up to 4 images. Each image must be under 5MB.
+        </small>
         <input
           type="file"
           multiple
           className="form-control"
           onChange={handleImageChange}
+          disabled={uploading}
         />
+        <div className="d-flex flex-wrap mt-2 gap-2">
+          {images.map((img, idx) => (
+            <img
+              key={idx}
+              src={img.url}
+              alt={`Design ${idx}`}
+              style={{ width: 80, height: 80, objectFit: "cover" }}
+              className="rounded"
+            />
+          ))}
+        </div>
       </div>
 
-      <button type="submit" className="btn btn-success">
-        {existingDesign ? "Update Design" : "Add Design"}
+      <button
+        type="submit"
+        className="btn btn-success w-100"
+        disabled={uploading}
+      >
+        {uploading
+          ? "Uploading..."
+          : existingDesign
+          ? "Update Design"
+          : "Add Design"}
       </button>
     </form>
   );

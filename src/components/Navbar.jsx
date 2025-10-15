@@ -5,7 +5,7 @@ function Navbar() {
   return (
     <nav className="navbar bg-light shadow-sm">
       <div className="container justify-content-center">
-        <a className="navbar-brand" href="#">
+        <a className="navbar-brand" href="/">
           <img
             src="/logo192.png" // 🔹 Replace with your logo path
             alt="Logo"
