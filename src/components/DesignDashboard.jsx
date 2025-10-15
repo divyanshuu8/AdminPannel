@@ -6,7 +6,6 @@ import { db } from "../Firebase";
 import {
   collection,
   getDocs,
-  addDoc,
   updateDoc,
   deleteDoc,
   doc,
@@ -33,6 +32,8 @@ export default function DesignDashboard() {
     "Modular-Kitchen-Designs"
   );
   const [selectedType, setSelectedType] = useState("Normal");
+  const [designToDelete, setDesignToDelete] = useState(null);
+
   const [selectedDesign, setSelectedDesign] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [designs, setDesigns] = useState([]);
@@ -62,25 +63,17 @@ export default function DesignDashboard() {
     fetchDesigns();
   }, [selectedCategory, selectedType]);
 
-  // --- Add new design ---
-  const handleAddDesign = async (newDesign) => {
-    try {
-      const docRef = await addDoc(collection(db, "designs"), newDesign);
-      setDesigns([...designs, { ...newDesign, id: docRef.id }]);
-      setShowForm(false);
-    } catch (error) {
-      console.error("Error adding design:", error);
-    }
-  };
-
   // --- Update design ---
   const handleUpdateDesign = async (updatedDesign) => {
     try {
-      const designRef = doc(db, "designs", updatedDesign.id);
-      await updateDoc(designRef, updatedDesign);
+      const { id, ...dataToUpdate } = updatedDesign; // remove 'id' before updating
+      const designRef = doc(db, "designs", id);
+      await updateDoc(designRef, dataToUpdate);
+
       setDesigns((prev) =>
-        prev.map((d) => (d.id === updatedDesign.id ? updatedDesign : d))
+        prev.map((d) => (d.id === id ? { id, ...dataToUpdate } : d))
       );
+
       setSelectedDesign(null);
     } catch (error) {
       console.error("Error updating design:", error);
@@ -91,22 +84,24 @@ export default function DesignDashboard() {
   const handleDeleteDesign = async (id) => {
     try {
       const design = designs.find((d) => d.id === id);
+      console.log("Deleting:", id, design);
 
-      // Delete images from ImgBB via Netlify function
       if (design?.images) {
         for (const img of design.images) {
           if (img.deleteUrl) {
-            await fetch("/.netlify/functions/deleteImg", {
+            const res = await fetch("/.netlify/functions/deleteImg", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ deleteUrl: img.deleteUrl }),
             });
+            const data = await res.json();
+            console.log("ImgBB delete:", data);
           }
         }
       }
 
-      // Delete design from Firestore
       await deleteDoc(doc(db, "designs", id));
+      console.log("Deleted from Firestore");
       setDesigns((prev) => prev.filter((d) => d.id !== id));
     } catch (error) {
       console.error("Error deleting design:", error);
@@ -162,7 +157,7 @@ export default function DesignDashboard() {
       {/* --- Add Form --- */}
       {showForm && (
         <DesignForm
-          onSave={handleAddDesign}
+          onSave={(newDesign) => setDesigns([...designs, newDesign])}
           selectedCategory={selectedCategory}
           selectedType={selectedType}
         />
@@ -180,7 +175,7 @@ export default function DesignDashboard() {
               <DesignCard
                 design={design}
                 onView={() => setSelectedDesign(design)}
-                onDelete={() => handleDeleteDesign(design.id)}
+                onDelete={() => setDesignToDelete(design)}
               />
             </div>
           ))}
@@ -194,6 +189,45 @@ export default function DesignDashboard() {
           onClose={() => setSelectedDesign(null)}
           onSave={handleUpdateDesign}
         />
+      )}
+
+      {designToDelete && (
+        <div className="modal show d-block" tabIndex="-1">
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">Confirm Delete</h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setDesignToDelete(null)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                <p>
+                  Are you sure you want to delete <b>{designToDelete.title}</b>?
+                </p>
+              </div>
+              <div className="modal-footer">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setDesignToDelete(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  className="btn btn-danger"
+                  onClick={() => {
+                    handleDeleteDesign(designToDelete.id);
+                    setDesignToDelete(null);
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

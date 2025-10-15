@@ -93,7 +93,7 @@ export default function DesignForm({
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (uploading) return; // prevent double submit
+    if (uploading) return;
     setUploading(true);
 
     try {
@@ -103,7 +103,7 @@ export default function DesignForm({
         return;
       }
 
-      // Check for duplicate title in the same category (only for new designs)
+      // Check for duplicate title in the same category
       if (!existingDesign) {
         const q = query(
           collection(db, "designs"),
@@ -118,6 +118,7 @@ export default function DesignForm({
         }
       }
 
+      // 🔧 Don't include "id" in designData
       const designData = {
         title,
         type,
@@ -128,11 +129,13 @@ export default function DesignForm({
         category: selectedCategory,
       };
 
-      if (existingDesign) {
+      if (existingDesign?.id) {
+        // ✅ Update existing design
         const docRef = doc(db, "designs", existingDesign.id);
         await updateDoc(docRef, designData);
         onSave({ ...existingDesign, ...designData });
       } else {
+        // ✅ Create a new one
         const docRef = await addDoc(collection(db, "designs"), designData);
         onSave({ ...designData, id: docRef.id });
       }
