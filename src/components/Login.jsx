@@ -15,7 +15,7 @@ export default function Login() {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      navigate("/dashboard");
+      navigate("/design-management");
     } catch (error) {
       alert("Login failed: " + error.message);
       console.error(error);

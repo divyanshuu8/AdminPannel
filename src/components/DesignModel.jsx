@@ -4,6 +4,7 @@ export default function DesignModal({ design, onClose, onSave }) {
   const [formData, setFormData] = useState({
     ...design,
     featuresInput: (design.features || []).join(", "),
+    ytUrl: design.ytUrl || "", // 👈 added for YouTube URL
   });
 
   const handleChange = (e) => {
@@ -87,6 +88,19 @@ export default function DesignModal({ design, onClose, onSave }) {
               onChange={handleChange}
               className="form-control mb-3"
               placeholder="e.g. Soft sliding doors, Mirror panels, Compact design"
+            />
+
+            {/* 👇 New YouTube URL field */}
+            <label className="form-label fw-semibold">
+              YouTube Video URL (optional)
+            </label>
+            <input
+              type="url"
+              name="ytUrl"
+              value={formData.ytUrl}
+              onChange={handleChange}
+              className="form-control mb-3"
+              placeholder="e.g. https://www.youtube.com/watch?v=abcd1234"
             />
           </div>
 

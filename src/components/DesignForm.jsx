@@ -23,7 +23,7 @@ export default function DesignForm({
   );
   const [features, setFeatures] = useState(existingDesign?.features || [""]);
   const [uploading, setUploading] = useState(false);
-
+  const [ytUrl, setYtUrl] = useState(existingDesign?.ytUrl || ""); // 👈 NEW
   const handleFeatureChange = (index, value) => {
     const updated = [...features];
     updated[index] = value;
@@ -124,6 +124,7 @@ export default function DesignForm({
         type,
         description,
         features,
+        ytUrl, // 👈 Added here
         images,
         createdAt: new Date(),
         category: selectedCategory,
@@ -144,6 +145,7 @@ export default function DesignForm({
       setTitle("");
       setDescription("");
       setFeatures([""]);
+      setYtUrl(""); // 👈 Reset
       setImages([]);
     } catch (error) {
       console.error("Error saving design:", error);
@@ -210,6 +212,19 @@ export default function DesignForm({
         >
           + Add Feature
         </button>
+      </div>
+
+      <div className="mb-2">
+        <label className="form-label fw-semibold">
+          YouTube Video URL (optional)
+        </label>
+        <input
+          type="url"
+          className="form-control"
+          placeholder="e.g. https://www.youtube.com/watch?v=abcd1234"
+          value={ytUrl}
+          onChange={(e) => setYtUrl(e.target.value)}
+        />
       </div>
 
       <div className="mb-3">

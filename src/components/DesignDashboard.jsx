@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 
 export default function DesignDashboard() {
+  const [visibleCount, setVisibleCount] = useState(3);
   const designCategories = [
     { label: "Modular Kitchen", value: "Modular-Kitchen-Designs" },
     { label: "Wardrobe", value: "Wardrobe-Designs" },
@@ -169,17 +170,31 @@ export default function DesignDashboard() {
       ) : designs.length === 0 ? (
         <p className="text-muted">No designs found for this category/type.</p>
       ) : (
-        <div className="row g-4 mt-2">
-          {designs.map((design) => (
-            <div className="col-md-4" key={design.id}>
-              <DesignCard
-                design={design}
-                onView={() => setSelectedDesign(design)}
-                onDelete={() => setDesignToDelete(design)}
-              />
+        <>
+          <div className="row g-4 mt-2">
+            {designs.slice(0, visibleCount).map((design) => (
+              <div className="col-md-4" key={design.id}>
+                <DesignCard
+                  design={design}
+                  onView={() => setSelectedDesign(design)}
+                  onDelete={() => setDesignToDelete(design)}
+                />
+              </div>
+            ))}
+          </div>
+
+          {/* Load More Button */}
+          {visibleCount < designs.length && (
+            <div className="text-center mt-4">
+              <button
+                className="btn btn-primary px-4 py-2"
+                onClick={() => setVisibleCount((prev) => prev + 3)}
+              >
+                Load More
+              </button>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
       {/* --- Modal --- */}
