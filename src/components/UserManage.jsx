@@ -1,39 +1,38 @@
 import React, { useEffect, useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
 
+const dummyData = [
+  {
+    _id: "1",
+    name: "Riya Patel",
+    mobile: "9876543210",
+    email: "riya@example.com",
+    propertyType: "2 BHK",
+    location: "Ahmedabad",
+    createdAt: "2025-10-18T12:30:00Z",
+  },
+  {
+    _id: "2",
+    name: "Amit Sharma",
+    mobile: "9988776655",
+    email: "amitsharma@gmail.com",
+    propertyType: "3 BHK",
+    location: "Mumbai",
+    createdAt: "2025-10-17T09:45:00Z",
+  },
+  {
+    _id: "3",
+    name: "Priya Nair",
+    mobile: "9123456789",
+    email: "priya.nair@yahoo.com",
+    propertyType: "4+ BHK / Duplex",
+    location: "Bangalore",
+    createdAt: "2025-10-16T18:15:00Z",
+  },
+];
+
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
-
-  // Dummy data (for testing if backend isn't running)
-  const dummyData = [
-    {
-      _id: "1",
-      name: "Riya Patel",
-      mobile: "9876543210",
-      email: "riya@example.com",
-      propertyType: "2 BHK",
-      location: "Ahmedabad",
-      createdAt: "2025-10-18T12:30:00Z",
-    },
-    {
-      _id: "2",
-      name: "Amit Sharma",
-      mobile: "9988776655",
-      email: "amitsharma@gmail.com",
-      propertyType: "3 BHK",
-      location: "Mumbai",
-      createdAt: "2025-10-17T09:45:00Z",
-    },
-    {
-      _id: "3",
-      name: "Priya Nair",
-      mobile: "9123456789",
-      email: "priya.nair@yahoo.com",
-      propertyType: "4+ BHK / Duplex",
-      location: "Bangalore",
-      createdAt: "2025-10-16T18:15:00Z",
-    },
-  ];
 
   useEffect(() => {
     fetch("http://localhost:5000/api/estimates")
