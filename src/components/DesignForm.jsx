@@ -36,9 +36,9 @@ export default function DesignForm({
     const files = Array.from(e.target.files);
 
     // Check if adding these files exceeds the limit
-    if (images.length + files.length > 4) {
+    if (images.length + files.length > 10) {
       alert(
-        `You can only upload up to 4 images. You already have ${images.length}.`
+        `You can only upload up to 10 images. You already have ${images.length}.`
       );
       return;
     }
@@ -74,7 +74,7 @@ export default function DesignForm({
         if (data.success) {
           uploadedUrls.push({
             url: data.data.url,
-            deleteUrl: data.data.delete_url, // store this
+            deleteUrl: data.data.delete_url,
           });
         } else {
           console.error("Upload failed:", data);
@@ -230,8 +230,9 @@ export default function DesignForm({
       <div className="mb-3">
         <label className="form-label fw-semibold">Images</label>
         <small className="text-muted d-block mb-1">
-          You can upload up to 4 images. Each image must be under 5MB.
+          You can upload up to 10 images. Each image must be under 5MB.
         </small>
+
         <input
           type="file"
           multiple
