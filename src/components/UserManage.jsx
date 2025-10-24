@@ -1,48 +1,80 @@
 import React, { useEffect, useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
-
-const dummyData = [
-  {
-    _id: "1",
-    name: "Riya Patel",
-    mobile: "9876543210",
-    email: "riya@example.com",
-    propertyType: "2 BHK",
-    location: "Ahmedabad",
-    createdAt: "2025-10-18T12:30:00Z",
-  },
-  {
-    _id: "2",
-    name: "Amit Sharma",
-    mobile: "9988776655",
-    email: "amitsharma@gmail.com",
-    propertyType: "3 BHK",
-    location: "Mumbai",
-    createdAt: "2025-10-17T09:45:00Z",
-  },
-  {
-    _id: "3",
-    name: "Priya Nair",
-    mobile: "9123456789",
-    email: "priya.nair@yahoo.com",
-    propertyType: "4+ BHK / Duplex",
-    location: "Bangalore",
-    createdAt: "2025-10-16T18:15:00Z",
-  },
-];
+import { collection, getDocs, query, where } from "firebase/firestore";
+import { db, auth } from "../Firebase"; // ✅ make sure firebase.js exports db & auth
+import { onAuthStateChanged } from "firebase/auth";
 
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("http://localhost:5000/api/estimates")
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) setUsers(data);
-        else setUsers(dummyData);
-      })
-      .catch(() => setUsers(dummyData));
+    // ✅ Listen for logged-in admin
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        // Fetch admin info from Firestore
+        const adminSnap = await getDocs(
+          query(collection(db, "users"), where("email", "==", user.email))
+        );
+        const adminData = adminSnap.docs[0]?.data();
+
+        setCurrentUser(adminData);
+        console.log("Admin data fetched:", adminData); // ✅ works instantly
+        if (adminData) {
+          await fetchUsers(adminData);
+        }
+      }
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, []);
+
+  const fetchUsers = async (adminData) => {
+    try {
+      let q;
+
+      if (adminData.role === "super-admin") {
+        // Fetch all users except super-admins
+        q = query(collection(db, "users"), where("role", "!=", "super-admin"));
+      } else if (adminData.role === "admin") {
+        // Fetch only normal users in the same location
+        q = query(
+          collection(db, "users"),
+          where("location", "==", adminData.location),
+          where("role", "==", "user") // Only normal users
+        );
+      } else {
+        // Normal users see nothing
+        setUsers([]);
+        return;
+      }
+
+      const snapshot = await getDocs(q);
+      const userList = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      setUsers(userList);
+    } catch (err) {
+      console.error("Error fetching users:", err);
+    }
+  };
+
+  if (loading)
+    return (
+      <div className="text-center mt-5">
+        <div className="spinner-border text-primary" role="status"></div>
+      </div>
+    );
+
+  if (!currentUser)
+    return (
+      <div className="text-center mt-5 text-danger">
+        Please log in to view users.
+      </div>
+    );
 
   return (
     <div className="container mt-5">
@@ -62,7 +94,7 @@ export default function UserManagement() {
             borderTopRightRadius: "16px",
           }}
         >
-          <h5 className="mb-0">📋 Collected User Information</h5>
+          <h5 className="mb-0">📋 User Information</h5>
           <span className="badge bg-light text-primary">
             Total Users: {users.length}
           </span>
@@ -92,7 +124,7 @@ export default function UserManagement() {
               <tbody>
                 {users.length > 0 ? (
                   users.map((u, index) => (
-                    <tr key={u._id} className="text-center">
+                    <tr key={u.id} className="text-center">
                       <td>{index + 1}</td>
                       <td className="fw-semibold">{u.name}</td>
                       <td>{u.mobile}</td>
@@ -106,7 +138,13 @@ export default function UserManagement() {
                         </span>
                       </td>
                       <td>{u.location}</td>
-                      <td>{new Date(u.createdAt).toLocaleDateString()}</td>
+                      <td>
+                        {u.createdAt?.seconds
+                          ? new Date(
+                              u.createdAt.seconds * 1000
+                            ).toLocaleDateString()
+                          : "-"}
+                      </td>
                     </tr>
                   ))
                 ) : (

@@ -1,8 +1,31 @@
-import React from "react";
-import { Link, useLocation } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 
 function Navbar() {
   const location = useLocation();
+  const navigate = useNavigate();
+  const auth = getAuth();
+  const [user, setUser] = useState(null);
+
+  // Track auth state
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, [auth]);
+
+  // Handle logout
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      navigate("/"); // Redirect to login page
+    } catch (error) {
+      console.error("Error logging out:", error);
+    }
+  };
+
   return (
     <nav className="bg-light shadow-sm">
       {/* --- Top Section --- */}
@@ -31,9 +54,10 @@ function Navbar() {
         </div>
       </div>
 
+      {/* --- Navigation Section --- */}
       <div className="bg-white shadow-sm border-top">
         <div className="container d-flex flex-column flex-md-row align-items-center justify-content-between py-2">
-          {/* Navigation Options */}
+          {/* Navigation Links */}
           <div className="d-flex flex-column flex-md-row gap-2 gap-md-3 mb-2 mb-md-0">
             <Link
               to="/design-management"
@@ -68,6 +92,16 @@ function Navbar() {
               Recent Projects
             </Link>
           </div>
+
+          {/* Logout Button */}
+          {user && (
+            <button
+              onClick={handleLogout}
+              className="btn btn-outline-danger rounded-pill px-3 py-2"
+            >
+              Log Out
+            </button>
+          )}
         </div>
       </div>
     </nav>
