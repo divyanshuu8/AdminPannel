@@ -1,8 +1,12 @@
 import { useState } from "react";
 import { auth } from "../Firebase";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import {
+  signInWithEmailAndPassword,
+  sendPasswordResetEmail,
+} from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import { FaEnvelope, FaLock } from "react-icons/fa";
+import toast from "react-hot-toast"; // ✅ Import toast
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -15,24 +19,40 @@ export default function Login() {
     setLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email, password);
+      toast.success("Login successful!");
       navigate("/design-management");
     } catch (error) {
-      alert("Login failed: " + error.message);
+      toast.error("Login failed: " + error.message);
       console.error(error);
     }
     setLoading(false);
+  };
+
+  const handlePasswordReset = async () => {
+    if (!email) {
+      toast.error("Please enter your email first!");
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      toast.success("Password reset email sent. Check your inbox!");
+    } catch (error) {
+      toast.error("Error sending password reset email: " + error.message);
+      console.error(error);
+    }
   };
 
   return (
     <div
       className="d-flex justify-content-center align-items-center"
       style={{
-        minHeight: "calc(100vh - 82px)", // assuming your navbar height is ~70px
+        minHeight: "calc(100vh - 82px)",
         background: "linear-gradient(135deg, #FFEDD5, #3816f9ff, #3c9ffbff)",
-        paddingTop: "20px", // optional, some spacing from navbar
+        paddingTop: "20px",
         paddingBottom: "20px",
       }}
     >
+
       <div
         className="card shadow-lg p-4"
         style={{ maxWidth: "400px", width: "100%" }}
@@ -71,6 +91,17 @@ export default function Login() {
               onChange={(e) => setPassword(e.target.value)}
               required
             />
+          </div>
+
+          <div className="text-end mb-3">
+            <button
+              type="button"
+              className="btn btn-link p-0"
+              style={{ fontSize: "0.9rem" }}
+              onClick={handlePasswordReset}
+            >
+              Forgot Password?
+            </button>
           </div>
 
           <button

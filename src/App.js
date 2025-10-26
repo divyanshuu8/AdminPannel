@@ -6,11 +6,15 @@ import Login from "./components/Login";
 import ProtectedRoute from "./components/ProtectedRoute";
 import UserManagement from "./components/UserManage";
 import RecentProjectsDashboard from "./components/RecentProject/RecentProjectsDashboard";
+import { Toaster } from "react-hot-toast"; // ✅ Import Toaster
+import PartnerManagement from "./components/PartnerManage";
 
 function App() {
   return (
     <Router>
       <Navbar />
+      {/* Global Toaster */}
+      <Toaster position="top-center" reverseOrder={false} />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route
@@ -34,6 +38,14 @@ function App() {
           element={
             <ProtectedRoute>
               <RecentProjectsDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/partner-management"
+          element={
+            <ProtectedRoute>
+              <PartnerManagement />
             </ProtectedRoute>
           }
         />
