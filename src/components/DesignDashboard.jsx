@@ -2,10 +2,13 @@ import { useEffect, useState } from "react";
 import DesignCard from "./DesignCard";
 import DesignModel from "./DesignModel";
 import DesignForm from "./DesignForm";
+import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { db } from "../Firebase";
 import {
   collection,
   getDocs,
+  query,
+  where,
   updateDoc,
   deleteDoc,
   doc,
@@ -26,6 +29,7 @@ export default function DesignDashboard() {
     { label: "2BHK", value: "2BHK-Designs" },
     { label: "3BHK", value: "3BHK-Designs" },
   ];
+  const [user, setUser] = useState(null);
 
   const designTypes = ["Normal", "Luxury", "Ultra Premium"];
 
@@ -39,6 +43,51 @@ export default function DesignDashboard() {
   const [showForm, setShowForm] = useState(false);
   const [designs, setDesigns] = useState([]);
   const [loading, setLoading] = useState(true);
+  // --- Track logged-in user ---
+
+  useEffect(() => {
+    const auth = getAuth();
+
+    console.log("🔄 Setting up Firebase Auth listener...");
+
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      console.log("👤 Auth state changed:", currentUser);
+
+      if (currentUser) {
+        try {
+          // Step 1: Get user email
+          const userEmail = currentUser.email;
+          console.log("📧 Logged-in email:", userEmail);
+
+          // Step 2: Query Firestore where email == userEmail
+          const adminsCollection = collection(db, "admins");
+          const q = query(adminsCollection, where("email", "==", userEmail));
+          const querySnapshot = await getDocs(q);
+
+          if (!querySnapshot.empty) {
+            const adminData = querySnapshot.docs[0].data();
+            console.log("✅ Admin record found:", adminData);
+            setUser({ ...currentUser, role: adminData.role });
+          } else {
+            console.log(
+              "⚠️ No admin record found → assigning default 'user' role"
+            );
+            setUser({ ...currentUser, role: "user" });
+          }
+        } catch (error) {
+          console.error("❌ Error fetching admin role:", error);
+        }
+      } else {
+        console.log("🚪 User signed out");
+        setUser(null);
+      }
+    });
+
+    return () => {
+      console.log("🧹 Cleaning up Firebase Auth listener");
+      unsubscribe();
+    };
+  }, []);
 
   // --- Fetch data from Firestore ---
   useEffect(() => {
@@ -115,8 +164,18 @@ export default function DesignDashboard() {
       <div className="d-flex justify-content-between align-items-center mb-4">
         <h2 className="fw-bold">Design Management</h2>
         <button
-          className="btn btn-primary"
+          className="btn btn-primary position-relative"
           onClick={() => setShowForm(!showForm)}
+          disabled={user?.role !== "super-admin"} // ✅ role-based control
+          style={{
+            opacity: user?.role !== "super-admin" ? 0.6 : 1,
+            cursor: user?.role !== "super-admin" ? "not-allowed" : "pointer",
+          }}
+          title={
+            user?.role !== "super-admin"
+              ? "Only Super Admins can add new designs"
+              : ""
+          }
         >
           {showForm ? "Close Form" : "Add Design"}
         </button>
@@ -178,6 +237,7 @@ export default function DesignDashboard() {
                   design={design}
                   onView={() => setSelectedDesign(design)}
                   onDelete={() => setDesignToDelete(design)}
+                  currentUser={user}
                 />
               </div>
             ))}

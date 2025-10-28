@@ -1,29 +1,42 @@
 import React, { useEffect, useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
-import { collection, getDocs, query, where } from "firebase/firestore";
-import { db, auth } from "../Firebase"; // ✅ make sure firebase.js exports db & auth
+import { collection, getDocs, query, where, addDoc } from "firebase/firestore";
+import { db, auth } from "../Firebase";
 import { onAuthStateChanged } from "firebase/auth";
+import toast from "react-hot-toast";
 
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentAdmin, setCurrentAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Modal state
+  const [showModal, setShowModal] = useState(false);
+  const [newAdminEmail, setNewAdminEmail] = useState("");
+  const [newAdminCity, setNewAdminCity] = useState("");
+
   useEffect(() => {
-    // ✅ Listen for logged-in admin
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Fetch admin info from Firestore
-        const adminSnap = await getDocs(
-          query(collection(db, "users"), where("email", "==", user.email))
-        );
-        const adminData = adminSnap.docs[0]?.data();
+        try {
+          const adminSnap = await getDocs(
+            query(collection(db, "admins"), where("email", "==", user.email))
+          );
 
-        setCurrentUser(adminData);
-        console.log("Admin data fetched:", adminData); // ✅ works instantly
-        if (adminData) {
-          await fetchUsers(adminData);
+          if (!adminSnap.empty) {
+            const adminData = adminSnap.docs[0].data();
+            setCurrentAdmin(adminData);
+            console.log("✅ Admin data fetched:", adminData);
+            await fetchUsers(adminData);
+          } else {
+            console.warn("⚠️ No admin record found for this user.");
+            setCurrentAdmin(null);
+          }
+        } catch (error) {
+          console.error("Error fetching admin data:", error);
         }
+      } else {
+        setCurrentAdmin(null);
       }
       setLoading(false);
     });
@@ -36,17 +49,14 @@ export default function UserManagement() {
       let q;
 
       if (adminData.role === "super-admin") {
-        // Fetch all users except super-admins
         q = query(collection(db, "users"), where("role", "!=", "super-admin"));
       } else if (adminData.role === "admin") {
-        // Fetch only normal users in the same location
         q = query(
           collection(db, "users"),
-          where("location", "==", adminData.location),
-          where("role", "==", "user") // Only normal users
+          where("location", "==", adminData.city),
+          where("role", "==", "user")
         );
       } else {
-        // Normal users see nothing
         setUsers([]);
         return;
       }
@@ -56,9 +66,36 @@ export default function UserManagement() {
         id: doc.id,
         ...doc.data(),
       }));
+
       setUsers(userList);
     } catch (err) {
       console.error("Error fetching users:", err);
+    }
+  };
+
+  const handleAddAdmin = async (e) => {
+    e.preventDefault();
+
+    if (!newAdminEmail || !newAdminCity) {
+      toast.error("Please fill in all fields");
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, "admins"), {
+        email: newAdminEmail,
+        city: newAdminCity,
+        role: "admin",
+        createdAt: new Date(),
+      });
+
+      toast.success("✅ New admin added successfully!");
+      setShowModal(false);
+      setNewAdminEmail("");
+      setNewAdminCity("");
+    } catch (error) {
+      console.error("Error adding admin:", error);
+      toast.error("Error adding admin: " + error.message);
     }
   };
 
@@ -69,10 +106,10 @@ export default function UserManagement() {
       </div>
     );
 
-  if (!currentUser)
+  if (!currentAdmin)
     return (
       <div className="text-center mt-5 text-danger">
-        Please log in to view users.
+        Please log in with an admin account to view users.
       </div>
     );
 
@@ -95,9 +132,22 @@ export default function UserManagement() {
           }}
         >
           <h5 className="mb-0">📋 User Information</h5>
-          <span className="badge bg-light text-primary">
-            Total Users: {users.length}
-          </span>
+
+          <div className="d-flex align-items-center gap-2">
+            <span className="badge bg-light text-primary">
+              Total Users: {users.length}
+            </span>
+
+            {/* ✅ Add Admin Button (Only for Super Admins) */}
+            {currentAdmin.role === "super-admin" && (
+              <button
+                className="btn btn-light btn-sm fw-semibold"
+                onClick={() => setShowModal(true)}
+              >
+                + Add Admin
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Table */}
@@ -171,6 +221,69 @@ export default function UserManagement() {
           Last Updated: {new Date().toLocaleString()}
         </div>
       </div>
+
+      {/* ✅ Add Admin Modal */}
+      {showModal && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+        >
+          <div className="modal-dialog">
+            <div className="modal-content border-0 rounded-4 shadow-lg">
+              <div className="modal-header bg-primary text-white">
+                <h5 className="modal-title">Add New Admin</h5>
+                <button
+                  type="button"
+                  className="btn-close btn-close-white"
+                  onClick={() => setShowModal(false)}
+                ></button>
+              </div>
+
+              <form onSubmit={handleAddAdmin}>
+                <div className="modal-body">
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold">Email</label>
+                    <input
+                      type="email"
+                      className="form-control"
+                      placeholder="Enter admin email"
+                      value={newAdminEmail}
+                      onChange={(e) => setNewAdminEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold">City</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Enter city"
+                      value={newAdminCity}
+                      onChange={(e) => setNewAdminCity(e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => setShowModal(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary">
+                    Add Admin
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
