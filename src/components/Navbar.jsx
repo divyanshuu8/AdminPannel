@@ -2,20 +2,49 @@ import React, { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 import { FaGoogle } from "react-icons/fa";
+import {
+  collection,
+  query,
+  where,
+  getDocs,
+  getFirestore,
+} from "firebase/firestore";
 
 function Navbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const auth = getAuth();
-  const [user, setUser] = useState(null);
+  const db = getFirestore();
 
-  // 🔹 Track authentication state
+  const [user, setUser] = useState(null);
+  const [role, setRole] = useState(null);
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        try {
+          // 🔹 Query by email instead of UID
+          const q = query(
+            collection(db, "admins"),
+            where("email", "==", currentUser.email)
+          );
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            const userData = querySnapshot.docs[0].data();
+            setRole(userData.role);
+          } else {
+            setRole(null);
+          }
+        } catch (err) {
+          console.error("Error fetching role:", err);
+        }
+      } else {
+        setRole(null);
+      }
     });
     return () => unsubscribe();
-  }, [auth]);
+  }, [auth, db]);
 
   // 🔹 Logout handler
   const handleLogout = async () => {
@@ -27,11 +56,17 @@ function Navbar() {
     }
   };
 
+  // 🔹 Common button styling
+  const linkClass = (path) =>
+    `btn rounded-pill text-center px-3 py-2 ${
+      location.pathname === path ? "btn-primary" : "btn-outline-primary"
+    }`;
+
   return (
     <nav
       className="shadow-sm position-sticky top-0 w-100 z-3"
       style={{
-        background: user ? "#fff" : "linear-gradient(90deg, #141E30, #243B55)", // fancy gradient when not logged in
+        background: user ? "#fff" : "linear-gradient(90deg, #141E30, #243B55)",
         transition: "all 0.3s ease",
       }}
     >
@@ -63,41 +98,58 @@ function Navbar() {
 
         {/* 🔹 Right Section */}
         {user ? (
-          // ✅ Logged-in Navbar (same as before)
           <div className="d-flex flex-column flex-md-row align-items-center gap-3">
             <div className="d-flex flex-column flex-md-row gap-2 mb-2 mb-md-0">
-              <Link
-                to="/design-management"
-                className={`btn rounded-pill text-center px-3 py-2 ${
-                  location.pathname === "/design-management"
-                    ? "btn-primary"
-                    : "btn-outline-primary"
-                }`}
-              >
-                Design Management
-              </Link>
+              {/* ✅ SuperAdmin - show all */}
+              {role === "superadmin" && (
+                <>
+                  <Link to="/analytics" className={linkClass("/analytics")}>
+                    Analytics
+                  </Link>
 
-              <Link
-                to="/user-management"
-                className={`btn rounded-pill text-center px-3 py-2 ${
-                  location.pathname === "/user-management"
-                    ? "btn-primary"
-                    : "btn-outline-primary"
-                }`}
-              >
-                User Management
-              </Link>
+                  <Link
+                    to="/design-management"
+                    className={linkClass("/design-management")}
+                  >
+                    Design Management
+                  </Link>
 
-              <Link
-                to="/recent-projects"
-                className={`btn rounded-pill text-center px-3 py-2 ${
-                  location.pathname === "/recent-projects"
-                    ? "btn-primary"
-                    : "btn-outline-primary"
-                }`}
-              >
-                Recent Projects
-              </Link>
+                  <Link
+                    to="/user-management"
+                    className={linkClass("/user-management")}
+                  >
+                    User Management
+                  </Link>
+                  <Link
+                    to="/partner-manage"
+                    className={linkClass("/partner-manage")}
+                  >
+                    Partner Management
+                  </Link>
+                  <Link
+                    to="/recent-projects"
+                    className={linkClass("/recent-projects")}
+                  >
+                    Recent Projects
+                  </Link>
+                </>
+              )}
+
+              {/* ✅ Admin - only Analytics + User Management */}
+              {role === "admin" && (
+                <>
+                  <Link to="/analytics" className={linkClass("/analytics")}>
+                    Analytics
+                  </Link>
+
+                  <Link
+                    to="/user-management"
+                    className={linkClass("/user-management")}
+                  >
+                    User Management
+                  </Link>
+                </>
+              )}
             </div>
 
             <button
@@ -108,7 +160,7 @@ function Navbar() {
             </button>
           </div>
         ) : (
-          // 🚀 When user is NOT logged in
+          // 🚀 Not logged in
           <div className="d-flex align-items-center gap-3">
             <span
               className="text-light d-none d-md-inline"

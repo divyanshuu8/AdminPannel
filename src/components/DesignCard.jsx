@@ -1,6 +1,6 @@
 export default function DesignCard({ design, onView, onDelete, currentUser }) {
   const isSuperAdmin =
-    currentUser?.role === "super-admin" ||
+    currentUser?.role === "superadmin" ||
     currentUser?.email === "superadmin@example.com"; // adjust logic
 
   return (

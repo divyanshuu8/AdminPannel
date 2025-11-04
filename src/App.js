@@ -8,6 +8,7 @@ import UserManagement from "./components/UserManage";
 import RecentProjectsDashboard from "./components/RecentProject/RecentProjectsDashboard";
 import { Toaster } from "react-hot-toast"; // ✅ Import Toaster
 import PartnerManagement from "./components/PartnerManage";
+import Analytics from "./components/Analytics";
 
 function App() {
   return (
@@ -42,10 +43,18 @@ function App() {
           }
         />
         <Route
-          path="/partner-management"
+          path="/partner-manage"
           element={
             <ProtectedRoute>
               <PartnerManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analytics"
+          element={
+            <ProtectedRoute>
+              <Analytics />
             </ProtectedRoute>
           }
         />

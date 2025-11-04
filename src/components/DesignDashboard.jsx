@@ -166,13 +166,13 @@ export default function DesignDashboard() {
         <button
           className="btn btn-primary position-relative"
           onClick={() => setShowForm(!showForm)}
-          disabled={user?.role !== "super-admin"} // ✅ role-based control
+          disabled={user?.role !== "superadmin"} // ✅ role-based control
           style={{
-            opacity: user?.role !== "super-admin" ? 0.6 : 1,
-            cursor: user?.role !== "super-admin" ? "not-allowed" : "pointer",
+            opacity: user?.role !== "superadmin" ? 0.6 : 1,
+            cursor: user?.role !== "superadmin" ? "not-allowed" : "pointer",
           }}
           title={
-            user?.role !== "super-admin"
+            user?.role !== "superadmin"
               ? "Only Super Admins can add new designs"
               : ""
           }

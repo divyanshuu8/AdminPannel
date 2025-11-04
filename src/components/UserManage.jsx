@@ -1,19 +1,13 @@
 import React, { useEffect, useState } from "react";
 import "bootstrap/dist/css/bootstrap.min.css";
-import { collection, getDocs, query, where, addDoc } from "firebase/firestore";
+import { collection, getDocs, query, where } from "firebase/firestore";
 import { db, auth } from "../Firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import toast from "react-hot-toast";
 
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
   const [currentAdmin, setCurrentAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  // Modal state
-  const [showModal, setShowModal] = useState(false);
-  const [newAdminEmail, setNewAdminEmail] = useState("");
-  const [newAdminCity, setNewAdminCity] = useState("");
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -48,8 +42,8 @@ export default function UserManagement() {
     try {
       let q;
 
-      if (adminData.role === "super-admin") {
-        q = query(collection(db, "users"), where("role", "!=", "super-admin"));
+      if (adminData.role === "superadmin") {
+        q = query(collection(db, "users"), where("role", "!=", "superadmin"));
       } else if (adminData.role === "admin") {
         q = query(
           collection(db, "users"),
@@ -70,32 +64,6 @@ export default function UserManagement() {
       setUsers(userList);
     } catch (err) {
       console.error("Error fetching users:", err);
-    }
-  };
-
-  const handleAddAdmin = async (e) => {
-    e.preventDefault();
-
-    if (!newAdminEmail || !newAdminCity) {
-      toast.error("Please fill in all fields");
-      return;
-    }
-
-    try {
-      await addDoc(collection(db, "admins"), {
-        email: newAdminEmail,
-        city: newAdminCity,
-        role: "admin",
-        createdAt: new Date(),
-      });
-
-      toast.success("✅ New admin added successfully!");
-      setShowModal(false);
-      setNewAdminEmail("");
-      setNewAdminCity("");
-    } catch (error) {
-      console.error("Error adding admin:", error);
-      toast.error("Error adding admin: " + error.message);
     }
   };
 
@@ -132,22 +100,9 @@ export default function UserManagement() {
           }}
         >
           <h5 className="mb-0">📋 User Information</h5>
-
-          <div className="d-flex align-items-center gap-2">
-            <span className="badge bg-light text-primary">
-              Total Users: {users.length}
-            </span>
-
-            {/* ✅ Add Admin Button (Only for Super Admins) */}
-            {currentAdmin.role === "super-admin" && (
-              <button
-                className="btn btn-light btn-sm fw-semibold"
-                onClick={() => setShowModal(true)}
-              >
-                + Add Admin
-              </button>
-            )}
-          </div>
+          <span className="badge bg-light text-primary">
+            Total Users: {users.length}
+          </span>
         </div>
 
         {/* Table */}
@@ -221,69 +176,6 @@ export default function UserManagement() {
           Last Updated: {new Date().toLocaleString()}
         </div>
       </div>
-
-      {/* ✅ Add Admin Modal */}
-      {showModal && (
-        <div
-          className="modal fade show d-block"
-          tabIndex="-1"
-          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
-        >
-          <div className="modal-dialog">
-            <div className="modal-content border-0 rounded-4 shadow-lg">
-              <div className="modal-header bg-primary text-white">
-                <h5 className="modal-title">Add New Admin</h5>
-                <button
-                  type="button"
-                  className="btn-close btn-close-white"
-                  onClick={() => setShowModal(false)}
-                ></button>
-              </div>
-
-              <form onSubmit={handleAddAdmin}>
-                <div className="modal-body">
-                  <div className="mb-3">
-                    <label className="form-label fw-semibold">Email</label>
-                    <input
-                      type="email"
-                      className="form-control"
-                      placeholder="Enter admin email"
-                      value={newAdminEmail}
-                      onChange={(e) => setNewAdminEmail(e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  <div className="mb-3">
-                    <label className="form-label fw-semibold">City</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="Enter city"
-                      value={newAdminCity}
-                      onChange={(e) => setNewAdminCity(e.target.value)}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => setShowModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn btn-primary">
-                    Add Admin
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -10,59 +10,65 @@ import {
 } from "firebase/firestore";
 import toast from "react-hot-toast";
 
-export default function PartnerManagement() {
-  const [partners, setPartners] = useState([]);
+export default function AdminManagement() {
+  const [admins, setAdmins] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [city, setCity] = useState("");
 
-  const partnersCollection = collection(db, "partners");
+  const adminsCollection = collection(db, "admins");
 
-  // Fetch partners from Firestore
-  const fetchPartners = async () => {
+  // Fetch admins from Firestore
+  const fetchAdmins = async () => {
     try {
-      const snapshot = await getDocs(partnersCollection);
-      const partnerList = snapshot.docs.map((doc) => ({
+      const snapshot = await getDocs(adminsCollection);
+      const adminList = snapshot.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
-      setPartners(partnerList);
+      setAdmins(adminList);
       setLoading(false);
     } catch (err) {
-      console.error("Error fetching partners:", err);
+      console.error("Error fetching admins:", err);
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchPartners();
+    fetchAdmins();
   }, []);
 
-  // Add new partner
-  const handleAddPartner = async () => {
-    if (!name || !email) {
-      toast.error("Name and Email are required!");
+  // Add new admin
+  const handleAddAdmin = async () => {
+    if (!email || !city) {
+      toast.error("Email and City are required!");
       return;
     }
+
     try {
-      await addDoc(partnersCollection, { name, email });
-      toast.success("Partner added successfully!");
-      setName("");
+      await addDoc(adminsCollection, {
+        email,
+        city,
+        role: "admin",
+        createdAt: new Date(),
+      });
+      toast.success("✅ Admin added successfully!");
       setEmail("");
-      fetchPartners();
+      setCity("");
+      fetchAdmins();
     } catch (err) {
-      toast.error("Error adding partner: " + err.message);
+      toast.error("Error adding admin: " + err.message);
     }
   };
 
-  // Delete partner
-  const handleDeletePartner = async (id) => {
+  // Delete admin
+  const handleDeleteAdmin = async (id) => {
     try {
-      await deleteDoc(doc(db, "partners", id));
-      toast.success("Partner deleted successfully!");
-      fetchPartners();
+      await deleteDoc(doc(db, "admins", id));
+      toast.success("🗑️ Admin deleted successfully!");
+      fetchAdmins();
     } catch (err) {
-      toast.error("Error deleting partner: " + err.message);
+      toast.error("Error deleting admin: " + err.message);
     }
   };
 
@@ -86,76 +92,93 @@ export default function PartnerManagement() {
         <div
           className="card-header text-white d-flex justify-content-between align-items-center"
           style={{
-            backgroundColor: "#28a745",
+            backgroundColor: "#007bff",
             borderTopLeftRadius: "16px",
             borderTopRightRadius: "16px",
           }}
         >
-          <h5 className="mb-0">🤝 Partner Management</h5>
-          <span className="badge bg-light text-success">
-            Total Partners: {partners.length}
+          <h5 className="mb-0">🛠️ Admin Management</h5>
+          <span className="badge bg-light text-primary">
+            Total Admins: {admins.length}
           </span>
         </div>
 
-        {/* Add Partner Form */}
+        {/* Add Admin Form */}
         <div className="card-body">
           <div className="row g-2 mb-4">
             <div className="col-md-4">
               <input
-                type="text"
-                className="form-control"
-                placeholder="Partner Name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <div className="col-md-4">
-              <input
                 type="email"
                 className="form-control"
-                placeholder="Partner Email"
+                placeholder="Admin Email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
               />
             </div>
             <div className="col-md-4">
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Admin City"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+              />
+            </div>
+            <div className="col-md-4">
               <button
-                className="btn btn-success w-100"
-                onClick={handleAddPartner}
+                className="btn btn-primary w-100"
+                onClick={handleAddAdmin}
               >
-                Add Partner
+                Add Admin
               </button>
             </div>
           </div>
 
-          {/* Partner Table */}
+          {/* Admin Table */}
           <div className="table-responsive">
             <table className="table align-middle table-bordered mb-0">
               <thead
                 style={{
-                  backgroundColor: "#d4edda",
-                  color: "#155724",
+                  backgroundColor: "#e3f2fd",
+                  color: "#004085",
                   fontWeight: "600",
                 }}
               >
                 <tr>
                   <th>#</th>
-                  <th>Name</th>
                   <th>Email</th>
+                  <th>City</th>
+                  <th>Role</th>
+                  <th>Date Added</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {partners.length > 0 ? (
-                  partners.map((p, index) => (
-                    <tr key={p.id} className="text-center">
+                {admins.length > 0 ? (
+                  admins.map((a, index) => (
+                    <tr key={a.id} className="text-center">
                       <td>{index + 1}</td>
-                      <td className="fw-semibold">{p.name}</td>
-                      <td>{p.email}</td>
+                      <td className="fw-semibold">{a.email}</td>
+                      <td>{a.city || "-"}</td>
+                      <td>
+                        <span
+                          className="badge rounded-pill text-dark"
+                          style={{ backgroundColor: "#d1ecf1" }}
+                        >
+                          {a.role}
+                        </span>
+                      </td>
+                      <td>
+                        {a.createdAt?.seconds
+                          ? new Date(
+                              a.createdAt.seconds * 1000
+                            ).toLocaleDateString()
+                          : "-"}
+                      </td>
                       <td>
                         <button
                           className="btn btn-sm btn-danger"
-                          onClick={() => handleDeletePartner(p.id)}
+                          onClick={() => handleDeleteAdmin(a.id)}
                         >
                           Delete
                         </button>
@@ -164,8 +187,8 @@ export default function PartnerManagement() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="4" className="text-center py-4 text-muted">
-                      No partner data available.
+                    <td colSpan="6" className="text-center py-4 text-muted">
+                      No admin data available.
                     </td>
                   </tr>
                 )}
@@ -178,7 +201,7 @@ export default function PartnerManagement() {
         <div
           className="card-footer text-center text-muted"
           style={{
-            backgroundColor: "#e6f4ea",
+            backgroundColor: "#f1f5ff",
             borderBottomLeftRadius: "16px",
             borderBottomRightRadius: "16px",
           }}

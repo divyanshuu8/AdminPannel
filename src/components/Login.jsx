@@ -17,7 +17,7 @@ export default function Login() {
       const result = await signInWithPopup(auth, googleProvider);
       const user = result.user;
       toast.success(`Welcome, ${user.displayName}!`);
-      navigate("/design-management");
+      navigate("/analytics");
     } catch (error) {
       toast.error("Google login failed: " + error.message);
       console.error(error);
