@@ -132,10 +132,16 @@ function Navbar() {
                   >
                     Recent Projects
                   </Link>
+                  <Link
+                    to="/blog-generation"
+                    className={linkClass("/blog-generation")}
+                  >
+                    Blog Generation
+                  </Link>
                 </>
               )}
 
-              {/* ✅ Admin - only Analytics + User Management */}
+              {/* ✅ Admin - only Analytics + User Management + Blog Generation */}
               {role === "admin" && (
                 <>
                   <Link to="/analytics" className={linkClass("/analytics")}>
@@ -147,6 +153,12 @@ function Navbar() {
                     className={linkClass("/user-management")}
                   >
                     User Management
+                  </Link>
+                  <Link
+                    to="/blog-generation"
+                    className={linkClass("/blog-generation")}
+                  >
+                    Blog Generation
                   </Link>
                 </>
               )}

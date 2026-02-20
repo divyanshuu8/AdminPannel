@@ -1,0 +1,130 @@
+/* Hover effects for blog cards */
+.hover-lift:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Smooth transitions */
+.card, .btn {
+  transition: all 0.3s ease;
+}
+
+/* Progress bar animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+.progress-bar-animated {
+  animation: pulse 2s ease-in-out infinite;
+}
+
+/* Blog content styling */
+.blog-content img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  margin: 20px 0;
+}
+
+.blog-content h2, .blog-content h3 {
+  margin-top: 30px;
+  margin-bottom: 15px;
+  font-weight: 600;
+}
+
+.blog-content p {
+  line-height: 1.8;
+  margin-bottom: 15px;
+}
+
+.blog-content ul, .blog-content ol {
+  margin-bottom: 20px;
+  padding-left: 30px;
+}
+
+.blog-content li {
+  margin-bottom: 10px;
+  line-height: 1.6;
+}
+
+.blog-content blockquote {
+  border-left: 4px solid #007bff;
+  padding-left: 20px;
+  margin: 20px 0;
+  font-style: italic;
+  color: #6c757d;
+}
+
+/* Spinner animation */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.spinner-border {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  vertical-align: text-bottom;
+  border: 0.15em solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+.spinner-border-sm {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-width: 0.1em;
+}
+
+/* Card improvements */
+.card {
+  border-radius: 12px;
+}
+
+.card-img-top {
+  border-radius: 12px 12px 0 0;
+}
+
+/* Form enhancements */
+.form-control:focus, .form-select:focus {
+  border-color: #0d6efd;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* Badge styling */
+.badge {
+  padding: 0.5em 0.8em;
+  font-weight: 500;
+  border-radius: 6px;
+}
+
+/* Button hover effects */
+.btn-outline-primary:hover {
+  transform: translateY(-2px);
+}
+
+.btn-outline-warning:hover {
+  transform: translateY(-2px);
+}
+
+.btn-outline-danger:hover {
+  transform: translateY(-2px);
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+  .h1 {
+    font-size: 1.75rem;
+  }
+  
+  .card-body {
+    padding: 1rem;
+  }
+}

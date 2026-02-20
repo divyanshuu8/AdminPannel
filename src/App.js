@@ -9,6 +9,7 @@ import RecentProjectsDashboard from "./components/RecentProject/RecentProjectsDa
 import { Toaster } from "react-hot-toast"; // ✅ Import Toaster
 import PartnerManagement from "./components/PartnerManage";
 import Analytics from "./components/Analytics";
+import BlogGeneration from "./components/BlogGeneration";
 
 function App() {
   return (
@@ -55,6 +56,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Analytics />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/blog-generation"
+          element={
+            <ProtectedRoute>
+              <BlogGeneration />
             </ProtectedRoute>
           }
         />
