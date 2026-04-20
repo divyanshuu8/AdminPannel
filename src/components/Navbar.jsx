@@ -59,17 +59,11 @@ function Navbar() {
   // 🔹 Common button styling
   const linkClass = (path) =>
     `btn rounded-pill text-center px-3 py-2 ${
-      location.pathname === path ? "btn-primary" : "btn-outline-primary"
+      location.pathname === path ? "btn-primary shadow-sm" : "text-light"
     }`;
 
   return (
-    <nav
-      className="shadow-sm position-sticky top-0 w-100 z-3"
-      style={{
-        background: user ? "#fff" : "linear-gradient(90deg, #141E30, #243B55)",
-        transition: "all 0.3s ease",
-      }}
-    >
+    <nav className="shadow-sm position-sticky top-0 w-100 z-3 nav-glass">
       <div className="container d-flex flex-column flex-md-row align-items-center justify-content-between py-3">
         {/* 🔹 Logo Section */}
         <Link
@@ -81,14 +75,11 @@ function Navbar() {
             alt="CircuitWave Logo"
             height="40"
             className="me-2"
-            style={{
-              filter: user ? "none" : "invert(1)",
-            }}
           />
           <span
             className="fw-bold fs-5"
             style={{
-              color: user ? "#272631" : "#fff",
+              color: "#f8fafc",
               letterSpacing: "0.5px",
             }}
           >

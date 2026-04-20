@@ -20,6 +20,10 @@ import {
   FaRobot,
   FaImage,
   FaSearch,
+  FaLink,
+  FaRegSave,
+  FaExternalLinkAlt,
+  FaBars,
 } from "react-icons/fa";
 import ImageUpload from "./ImageUpload";
 import { db } from "../Firebase";
@@ -92,6 +96,7 @@ const emptyManualData = () => ({
   readingTime: 5,
   excerpt: "",
   image: "",
+  imageAlt: "",
   content: "",
   metaDescription: "",
   metaKeywords: [""],
@@ -122,8 +127,10 @@ function BlogGeneration() {
   const [manualData, setManualData] = useState(emptyManualData());
   const [savingManual, setSavingManual] = useState(false);
   const [insertingImage, setInsertingImage] = useState(false);
+  const [isHtmlMode, setIsHtmlMode] = useState(false);
   const quillRef = useRef(null);
   const contentImageInputRef = useRef(null);
+  const htmlEditorRef = useRef(null);
 
   const categories = [
     "Bedroom Design Ideas",
@@ -238,7 +245,7 @@ function BlogGeneration() {
       metaKeywords: p.metaKeywords.filter((_, i) => i !== idx),
     }));
 
-  // ── Insert image into Quill at cursor ─────────────────────────────────────
+  // ── Insert image into Quill or HTML at cursor (with description/alt) ─────────────
   const handleContentImageInsert = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -246,13 +253,37 @@ function BlogGeneration() {
     try {
       const result = await uploadImage(file);
       const url = result.url;
-      const editor = quillRef.current?.getEditor();
-      if (editor) {
-        const range = editor.getSelection(true);
-        editor.insertEmbed(range ? range.index : 0, "image", url);
-        editor.setSelection((range ? range.index : 0) + 1);
+      // Ask for image description / alt text
+      const description = window.prompt(
+        "Enter a description for this image (used as alt text for SEO & accessibility):",
+        file.name.replace(/\.[^.]+$/, "").replace(/[-_]/g, " ")
+      );
+      const alt = (description || "").trim();
+      const imgTag = `<img src="${url}" alt="${alt}" style="max-width:100%;height:auto;display:block;margin:12px 0;" />`;
+
+      if (isHtmlMode) {
+        // For HTML textarea, append or insert at cursor if possible
+        const textarea = htmlEditorRef.current;
+        if (textarea) {
+          const start = textarea.selectionStart;
+          const end = textarea.selectionEnd;
+          const content = manualData.content;
+          const newContent = content.substring(0, start) + imgTag + content.substring(end);
+          setManualData((p) => ({ ...p, content: newContent }));
+        } else {
+          setManualData((p) => ({ ...p, content: p.content + imgTag }));
+        }
+      } else {
+        const editor = quillRef.current?.getEditor();
+        if (editor) {
+          const range = editor.getSelection(true);
+          const idx = range ? range.index : 0;
+          // Insert as HTML so we can include alt text
+          editor.clipboard.dangerouslyPasteHTML(idx, imgTag);
+          editor.setSelection(idx + 1);
+        }
+        setManualData((p) => ({ ...p, content: quillRef.current?.getEditor().root.innerHTML || p.content }));
       }
-      setManualData((p) => ({ ...p, content: quillRef.current?.getEditor().root.innerHTML || p.content }));
       toast.success("Image inserted into content!");
     } catch (err) {
       toast.error("Failed to upload image");
@@ -461,18 +492,16 @@ function BlogGeneration() {
                 <label className="form-label fw-bold d-flex align-items-center">
                   <FaTag className="me-2 text-primary" />Category
                 </label>
-                <select
-                  className="form-select form-select-lg"
+                <input
+                  type="text"
+                  className="form-control form-control-lg"
                   name="category"
                   value={formData.category}
                   onChange={handleChange}
+                  placeholder="e.g., Bedroom Design Ideas"
                   disabled={loading}
-                >
-                  <option value="">Select a category</option>
-                  {categories.map((cat) => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
-                </select>
+                />
+                <small className="text-muted">Type any category for this blog post</small>
               </div>
 
               <button
@@ -576,376 +605,497 @@ function BlogGeneration() {
     </div>
   );
 
-  // ══════════════════════════════════════════════════════════════════════════
+    // ══════════════════════════════════════════════════════════════════════════
   // RENDER: Manual Blog Writing View
   // ══════════════════════════════════════════════════════════════════════════
+
+  // Local state for sidebar
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [focusKeyword, setFocusKeyword] = useState("");
+  const [sidebarAiTopic, setSidebarAiTopic] = useState("");
+
+  const analyzeSEO = () => {
+    const textContent = (manualData.content || "").replace(/<[^>]*>?/gm, " ");
+    const words = textContent.trim().split(/\s+/).filter(w => w.length > 0).length;
+    const h1Count = (manualData.content.match(/<h1[^>]*>/g) || []).length;
+    const h2Count = (manualData.content.match(/<h2[^>]*>/g) || []).length;
+    const linksMatch = manualData.content.match(/href="([^"]*)"/g) || [];
+    let internalLinksCount = 0;
+    const parsedLinks = [];
+    linksMatch.forEach(l => {
+      const href = l.replace('href="', '').replace('"', '');
+      const isInternal = href.startsWith('/') || href.includes('interiorji.com');
+      if (isInternal) internalLinksCount++;
+      parsedLinks.push({ href: href, isInternal });
+    });
+    
+    let score = 0;
+    if (manualData.title.length >= 30 && manualData.title.length <= 60) score += 20;
+    if (manualData.metaDescription.length >= 100 && manualData.metaDescription.length <= 160) score += 20;
+    if (h1Count > 0) score += 20;
+    if (h2Count > 0) score += 10;
+    if (internalLinksCount > 0) score += 10;
+    if (words > 300) score += 20;
+    
+    return { words, h1Count, h2Count, internalLinksCount, score, parsedLinks };
+  };
+
+  const seoData = analyzeSEO();
+
+  const handleClearHTML = () => setManualData(p => ({ ...p, content: "" }));
+  
+  useEffect(() => {
+    if (isHtmlMode && !manualData.content) {
+      setManualData(p => ({...p, content: `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Untitled</title>
+  <style>
+    body{font-family:'DM Sans',sans-serif;max-width:820px;margin:0 auto;padding:40px 24px;background:#fff;color:#1a1a2e;line-height:1.8;}
+    h1{font-family:'DM Serif Display',serif;font-size:2.2rem;font-weight:400;margin:0 0 20px;color:#0e0f1e;}
+    h2{font-family:'DM Serif Display',serif;font-size:1.5rem;font-weight:400;margin:32px 0 12px;color:#0e0f1e;}
+    h3{font-size:1.1rem;font-weight:600;margin:24px 0 10px;}
+    p{margin-bottom:14px;color:#2c2e3e;}
+    a{color:#c8a96e;text-decoration:underline;}
+    img{max-width:100%;border-radius:8px;margin:16px 0;}
+    blockquote{border-left:3px solid #c8a96e;padding:12px 20px;background:#faf5ec;border-radius:0 8px 8px 0;margin:20px 0;font-style:italic;}
+  </style>
+</head>
+<body>
+  <h1>Welcome</h1>
+</body>
+</html>`}));
+    }
+  }, [isHtmlMode, manualData.content]);
+
+  // Styles specific for dark Content Studio
+  const studioStyles = {
+    bg: "transparent",
+    panelBg: "rgba(30, 41, 59, 0.4)",
+    border: "rgba(255, 255, 255, 0.1)",
+    textPrimary: "#f8fafc",
+    textSecondary: "#94a3b8",
+    accent: "#3b82f6", // Blue primary
+  };
+
   const renderManualBlogView = () => (
-    <div className="container">
-      {/* Header */}
-      <div className="mb-4 d-flex flex-wrap justify-content-between align-items-center gap-2">
-        <div>
-          <button className="btn btn-outline-secondary btn-sm mb-2" onClick={() => setView("generate")}>
-            <FaArrowLeft className="me-2" />Back
-          </button>
-          <h1 className="h2 fw-bold text-dark mb-1">
-            <FaPen className="me-2 text-success" />
-            Write Blog Manually
-          </h1>
-          <p className="text-muted">Create a fully formatted blog post with images and SEO</p>
+    <div className="w-100 m-0 p-0" style={{ backgroundColor: studioStyles.bg, color: studioStyles.textPrimary, fontFamily: "'Inter', sans-serif" }}>
+      {/* Top Header */}
+      <div className="d-flex justify-content-between align-items-center px-4 py-3" style={{ borderBottom: `1px solid ${studioStyles.border}`, backgroundColor: "rgba(15,23,42,0.8)", backdropFilter: "blur(12px)" }}>
+        <div className="d-flex align-items-center gap-4">
+          <h2 className="m-0 fs-4 fw-bold" style={{ color: "#fff" }}>
+            <span style={{ color: studioStyles.accent }}>Interiorji</span> Content Studio
+          </h2>
+          <div className="btn-group" role="group">
+            <button
+              type="button"
+              className="btn btn-sm"
+              style={{
+                backgroundColor: !isHtmlMode ? "rgba(59,130,246,0.2)" : "transparent",
+                color: !isHtmlMode ? "#3b82f6" : studioStyles.textSecondary,
+                border: `1px solid ${studioStyles.border}`,
+                borderRadius: "6px 0 0 6px"
+              }}
+              onClick={() => setIsHtmlMode(false)}
+            >
+              <FaPen className="me-2" /> Editor Mode
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm"
+              style={{
+                backgroundColor: isHtmlMode ? "rgba(59,130,246,0.2)" : "transparent",
+                color: isHtmlMode ? "#3b82f6" : studioStyles.textSecondary,
+                border: `1px solid ${studioStyles.border}`,
+                borderRadius: "0 6px 6px 0"
+              }}
+              onClick={() => setIsHtmlMode(true)}
+            >
+              &lt;/&gt; HTML Mode
+            </button>
+          </div>
         </div>
-        <button className="btn btn-outline-primary" onClick={() => setView("list")}>
-          <FaList className="me-2" />View All Blogs
-        </button>
+
+        <div className="d-flex align-items-center gap-3">
+          <button className="btn btn-sm" style={{ color: studioStyles.textSecondary, backgroundColor: "transparent", border: "none" }} onClick={() => setView("list")}>
+            Cancel
+          </button>
+          <button className="btn btn-sm glass-input" onClick={(e) => { setManualData(p => ({...p, published: false})); handleManualSave(e); }}>
+            <FaRegSave className="me-2" /> Save Draft
+          </button>
+          <button type="button" className="btn btn-sm glass-input" onClick={() => { setSelectedBlog(manualData); setView("view"); }}>
+            <FaEye className="me-2" /> Preview
+          </button>
+          <button className="btn btn-sm premium-gradient-btn fw-bold px-3 py-1" onClick={(e) => { setManualData(p => ({...p, published: true})); handleManualSave(e); }}>
+            <FaExternalLinkAlt className="me-2" /> Publish
+          </button>
+        </div>
       </div>
 
-      <form onSubmit={handleManualSave}>
-        <div className="row g-4">
-
-          {/* ── CARD 1: Basic Info ─────────────────────────────────────────── */}
-          <div className="col-12">
-            <div className="card shadow-sm border-0 p-4">
-              <h5 className="fw-bold mb-4 d-flex align-items-center">
-                <span className="badge bg-primary me-2">1</span>Basic Information
-              </h5>
-              <div className="row g-3">
-
-                <div className="col-12">
-                  <label className="form-label fw-semibold">
-                    Title <span className="text-danger">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="form-control form-control-lg"
-                    name="title"
-                    value={manualData.title}
-                    onChange={handleManualChange}
-                    placeholder="e.g., 10 Stunning Bedroom Design Ideas for 2025"
-                    required
-                  />
-                </div>
-
-                <div className="col-md-6">
-                  <label className="form-label fw-semibold">Author</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    name="author"
-                    value={manualData.author}
-                    onChange={handleManualChange}
-                    placeholder="e.g., Interiorji Team"
-                  />
-                </div>
-
-                <div className="col-md-6">
-                  <label className="form-label fw-semibold">
-                    Category <span className="text-danger">*</span>
-                  </label>
-                  <select
-                    className="form-select"
-                    name="category"
-                    value={manualData.category}
-                    onChange={handleManualChange}
-                    required
-                  >
-                    <option value="">Select a category</option>
-                    {categories.map((cat) => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="col-md-6">
-                  <label className="form-label fw-semibold">
-                    Slug (URL)
-                    <small className="text-muted fw-normal ms-1">(auto-generated)</small>
-                  </label>
-                  <div className="input-group">
-                    <span className="input-group-text text-muted small">/blog/</span>
-                    <input
-                      type="text"
-                      className="form-control"
-                      name="slug"
-                      value={manualData.slug}
-                      onChange={handleManualChange}
-                      placeholder="my-blog-post-slug"
-                    />
-                  </div>
-                </div>
-
-                <div className="col-md-3">
-                  <label className="form-label fw-semibold">Date</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    name="date"
-                    value={manualData.date}
-                    onChange={handleManualChange}
-                    placeholder="February 25, 2025"
-                  />
-                </div>
-
-                <div className="col-md-3">
-                  <label className="form-label fw-semibold">Reading Time (min)</label>
-                  <input
-                    type="number"
-                    className="form-control"
-                    name="readingTime"
-                    value={manualData.readingTime}
-                    onChange={handleManualChange}
-                    min="1"
-                  />
-                </div>
-
-                <div className="col-12">
-                  <label className="form-label fw-semibold">Excerpt / Summary</label>
-                  <textarea
-                    className="form-control"
-                    name="excerpt"
-                    value={manualData.excerpt}
-                    onChange={handleManualChange}
-                    rows="3"
-                    placeholder="A brief description of the blog post that appears in listings..."
-                  />
-                </div>
-
-                <div className="col-12">
-                  <div className="form-check">
-                    <input
-                      type="checkbox"
-                      className="form-check-input"
-                      name="published"
-                      id="manualPublished"
-                      checked={manualData.published}
-                      onChange={handleManualChange}
-                    />
-                    <label className="form-check-label fw-semibold" htmlFor="manualPublished">
-                      Publish immediately (visible on website)
-                    </label>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ── CARD 2: Main / Featured Image ─────────────────────────────── */}
-          <div className="col-12">
-            <div className="card shadow-sm border-0 p-4">
-              <h5 className="fw-bold mb-4 d-flex align-items-center">
-                <span className="badge bg-primary me-2">2</span>
-                <FaImage className="me-2 text-primary" />
-                Main / Featured Image
-              </h5>
-              <ImageUpload
-                currentImage={manualData.image}
-                onUpload={(url) => setManualData((p) => ({ ...p, image: url }))}
-                label="Upload Featured Image"
-              />
-              {manualData.image && (
-                <div className="mt-3">
-                  <img
-                    src={manualData.image}
-                    alt="Featured"
-                    className="img-fluid rounded shadow-sm"
-                    style={{ maxHeight: "300px", objectFit: "cover", width: "100%" }}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── CARD 3: Content (Rich Text) ───────────────────────────────── */}
-          <div className="col-12">
-            <div className="card shadow-sm border-0 p-4">
-              <div className="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
-                <h5 className="fw-bold mb-0 d-flex align-items-center">
-                  <span className="badge bg-primary me-2">3</span>Blog Content
-                </h5>
-
-                {/* Insert image into content button */}
-                <div>
-                  <label
-                    className={`btn btn-outline-success btn-sm ${insertingImage ? "disabled" : ""}`}
-                    title="Upload an image and insert it at the cursor position in the editor"
-                  >
-                    {insertingImage ? (
-                      <><FaSpinner className="spinner-border spinner-border-sm me-2" />Uploading...</>
-                    ) : (
-                      <><FaImages className="me-2" />Insert Image into Content</>
-                    )}
-                    <input
-                      ref={contentImageInputRef}
-                      type="file"
-                      className="d-none"
-                      accept="image/*"
-                      onChange={handleContentImageInsert}
-                      disabled={insertingImage}
-                    />
-                  </label>
-                  <small className="text-muted d-block mt-1" style={{ fontSize: "0.7rem" }}>
-                    Places image at cursor position
-                  </small>
-                </div>
-              </div>
-
-              {/* Formatting guide */}
-              <div className="alert alert-info py-2 px-3 small mb-3">
-                <strong>Formatting:</strong> Use the toolbar for{" "}
-                <strong>Bold</strong>, <em>Italic</em>, Headings (H1-H3), Bullet lists, Ordered lists, Blockquotes, and Links.
-                Click <strong>Insert Image into Content</strong> to add images anywhere in the body.
-              </div>
-
-              <div style={{ minHeight: "400px" }}>
-                <ReactQuill
-                  ref={quillRef}
-                  theme="snow"
-                  value={manualData.content}
-                  onChange={(val) => setManualData((p) => ({ ...p, content: val }))}
-                  modules={quillModules}
-                  formats={quillFormats}
-                  placeholder="Start writing your amazing blog post here..."
-                  style={{ height: "380px", marginBottom: "44px" }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* ── CARD 4: SEO ───────────────────────────────────────────────── */}
-          <div className="col-12">
-            <div className="card shadow-sm border-0 p-4">
-              <h5 className="fw-bold mb-4 d-flex align-items-center">
-                <span className="badge bg-primary me-2">4</span>
-                <FaSearch className="me-2 text-primary" />
-                SEO & Social Sharing
-              </h5>
-
-              <div className="row g-3">
-                <div className="col-12">
-                  <label className="form-label fw-semibold">
-                    Meta Description
-                    <small className="text-muted fw-normal ms-1">(recommended: 150-160 chars)</small>
-                  </label>
-                  <textarea
-                    className="form-control"
-                    name="metaDescription"
-                    value={manualData.metaDescription}
-                    onChange={handleManualChange}
-                    rows="2"
-                    placeholder="Brief description for search engine results..."
-                    maxLength={160}
-                  />
-                  <small className="text-muted">
-                    {manualData.metaDescription.length}/160 characters
-                  </small>
-                </div>
-
-                <div className="col-12">
-                  <label className="form-label fw-semibold">Meta Keywords</label>
-                  {manualData.metaKeywords.map((kw, idx) => (
-                    <div key={idx} className="input-group mb-2">
-                      <input
-                        type="text"
-                        className="form-control"
-                        name={`manualKw-${idx}`}
-                        value={kw}
-                        onChange={handleManualChange}
-                        placeholder={`Keyword ${idx + 1}`}
+      <div className="container-fluid p-4">
+        <form onSubmit={handleManualSave}>
+          <div className="row g-4">
+            
+            {/* Left Column - Main Editor */}
+            <div className="col-12 col-xl-8">
+              <div className="d-flex flex-column gap-3">
+                
+                {/* Inputs area */}
+                <div className="d-flex flex-column gap-3">
+                  <div className="d-flex align-items-center">
+                    <div style={{ width: "100px", color: studioStyles.textSecondary, fontSize: "0.85rem", fontWeight: "bold", letterSpacing: "1px" }}>TITLE</div>
+                    <div className="flex-grow-1 position-relative">
+                      <input 
+                        type="text" 
+                        name="title" 
+                        value={manualData.title} 
+                        onChange={handleManualChange} 
+                        className="form-control glass-input"
+                        style={{ paddingRight: "50px" }}
+                        placeholder="Enter SEO-optimized title.."
+                        maxLength={60}
                       />
+                      <span className="position-absolute top-50 translate-middle-y end-0 pe-3" style={{ color: studioStyles.textSecondary, fontSize: "0.8rem" }}>
+                        {manualData.title.length}/60
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="d-flex align-items-center">
+                    <div style={{ width: "100px", color: studioStyles.textSecondary, fontSize: "0.85rem", fontWeight: "bold", letterSpacing: "1px" }}>SLUG</div>
+                    <div className="flex-grow-1">
+                      <input 
+                        type="text" 
+                        name="slug" 
+                        value={manualData.slug} 
+                        onChange={handleManualChange} 
+                        className="form-control glass-input"
+                        
+                        placeholder="url-friendly-slug"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="d-flex align-items-start">
+                    <div className="pt-2" style={{ width: "100px", color: studioStyles.textSecondary, fontSize: "0.85rem", fontWeight: "bold", letterSpacing: "1px" }}>META DESC</div>
+                    <div className="flex-grow-1 position-relative">
+                      <textarea 
+                        name="metaDescription" 
+                        value={manualData.metaDescription} 
+                        onChange={handleManualChange} 
+                        className="form-control glass-input"
+                        style={{ paddingRight: "50px", minHeight: "60px" }}
+                        placeholder="Write a compelling meta description..."
+                        maxLength={160}
+                      />
+                      <span className="position-absolute top-0 end-0 pt-2 pe-3" style={{ color: studioStyles.textSecondary, fontSize: "0.8rem" }}>
+                        {manualData.metaDescription.length}/160
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Editor Surface */}
+                <div className="mt-4">
+                  <div className="d-flex justify-content-between align-items-center mb-0 px-3 py-2" style={{ backgroundColor: "rgba(15, 23, 42, 0.6)", backdropFilter: "blur(12px)", border: `1px solid ${studioStyles.border}`, borderBottom: "none", borderRadius: "12px 12px 0 0" }}>
+                    <div style={{ fontSize: "0.85rem", fontWeight: "bold", color: studioStyles.textSecondary, letterSpacing: "1px" }}>
+                      {isHtmlMode ? "HTML EDITOR" : "RICH TEXT EDITOR"}
+                    </div>
+                    <div className="d-flex gap-2 align-items-center">
+                      {isHtmlMode && (
+                        <>
+                          <button type="button" className="btn btn-sm glass-input">Format HTML</button>
+                          <button type="button" className="btn btn-sm glass-input" onClick={handleClearHTML}>Clear</button>
+                        </>
+                      )}
+                      
+                      {/* Image Upload available in BOTH modes */}
+                      <label className="btn btn-sm glass-input mb-0" style={{ cursor: "pointer" }}>
+                        {insertingImage ? (
+                          <><FaSpinner className="spinner-border spinner-border-sm me-2" />Uploading...</>
+                        ) : (
+                          <><FaImages className="me-2" />Insert Image</>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="d-none"
+                          onChange={handleContentImageInsert}
+                          disabled={insertingImage}
+                        />
+                      </label>
+
+                      {isHtmlMode && (
+                        <>
+                          <button type="button" className="btn btn-sm premium-gradient-btn ms-2">&larr; Sync to Editor</button>
+                          <button type="button" className="btn btn-sm premium-gradient-btn fw-bold">Live Preview &rarr;</button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div style={{ border: `1px solid ${studioStyles.border}`, borderRadius: "0 0 12px 12px", minHeight: "600px", backgroundColor: "rgba(30, 41, 59, 0.4)", backdropFilter: "blur(12px)", overflow: "hidden" }}>
+                    {isHtmlMode ? (
+                      <textarea
+                        ref={htmlEditorRef}
+                        className="form-control font-monospace p-4"
+                        style={{ border: "none", backgroundColor: "transparent", color: "#A9DC76", minHeight: "600px", fontSize: "14px", lineHeight: "1.6", outline: "none", boxShadow: "none" }}
+                        value={manualData.content}
+                        onChange={(e) => setManualData((p) => ({ ...p, content: e.target.value }))}
+                        spellCheck="false"
+                      />
+                    ) : (
+                      <div style={{ padding: "0", height: "600px", color: "black", backgroundColor: "#fff" }}>
+                        <ReactQuill
+                          ref={quillRef}
+                          theme="snow"
+                          value={manualData.content}
+                          onChange={(val) => setManualData((p) => ({ ...p, content: val }))}
+                          modules={quillModules}
+                          formats={quillFormats}
+                          placeholder="Start writing your amazing blog post here..."
+                          style={{ height: "558px", border: "none" }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Right Column - Sidebars */}
+            <div className="col-12 col-xl-4 d-flex flex-column gap-4">
+
+              {/* AI BLOG GENERATOR */}
+              <div className="card p-4 shadow-sm border-0 mb-4" style={{ borderRadius: "12px", background: "rgba(30, 41, 59, 0.4)", backdropFilter: "blur(12px)" }}>
+                <div className="d-flex align-items-center mb-3 text-uppercase" style={{ fontSize: "0.85rem", fontWeight: "bold", color: studioStyles.textSecondary, letterSpacing: "1px" }}>
+                  <FaRobot className="me-2 text-warning" /> AI BLOG GENERATOR
+                </div>
+                <div className="d-flex gap-2 mb-3">
+                  <input 
+                    type="text" 
+                    className="form-control glass-input"
+                    
+                    placeholder="e.g. luxury living room design tre..."
+                    value={sidebarAiTopic}
+                    onChange={(e) => setSidebarAiTopic(e.target.value)}
+                  />
+                  <button type="button" className="btn premium-gradient-btn fw-bold ms-2" onClick={() => {
+                     setFormData({ topic: sidebarAiTopic, keywords: "", category: "Auto" });
+                     handleSubmit(new Event('submit'));
+                  }}>Generate</button>
+                </div>
+                <div className="d-flex flex-wrap gap-2">
+                  {["Bedroom HYD", "Kitchen MUM", "Smart Home BLR", "Vastu Tips", "Styles 2026"].map(tag => (
+                    <span key={tag} className="badge" style={{ backgroundColor: "transparent", border: `1px solid ${studioStyles.border}`, color: studioStyles.textSecondary, fontWeight: "normal", padding: "6px 10px", cursor: "pointer" }} onClick={() => setSidebarAiTopic(tag)}>
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* SEO ANALYZER */}
+              <div className="card p-4 shadow-sm border-0 mb-4" style={{ borderRadius: "12px", background: "rgba(30, 41, 59, 0.4)", backdropFilter: "blur(12px)" }}>
+                <div className="d-flex align-items-center mb-4 text-uppercase" style={{ fontSize: "0.85rem", fontWeight: "bold", color: studioStyles.textSecondary, letterSpacing: "1px" }}>
+                  <FaSearch className="me-2" style={{ color: "#EAA451" }} /> SEO ANALYZER
+                </div>
+                
+                <div className="d-flex align-items-center gap-4 mb-4">
+                  <div className="rounded-circle d-flex flex-column align-items-center justify-content-center" style={{ width: "70px", height: "70px", border: `3px solid ${seoData.score > 50 ? studioStyles.accent : studioStyles.border}` }}>
+                    <span className="fs-4 fw-bold" style={{ color: "#fff" }}>{seoData.score}</span>
+                    <span style={{ fontSize: "0.55rem", color: studioStyles.textSecondary }}>SCORE</span>
+                  </div>
+                  <div style={{ color: studioStyles.textSecondary, fontSize: "0.9rem" }}>
+                    Start writing to analyze
+                  </div>
+                </div>
+
+                <div className="d-flex gap-2 mb-4">
+                  <input 
+                    type="text" 
+                    className="form-control glass-input"
+                    
+                    placeholder="Focus keyword.."
+                    value={focusKeyword}
+                    onChange={(e) => setFocusKeyword(e.target.value)}
+                  />
+                  <button type="button" className="btn glass-input">Analyze</button>
+                </div>
+
+                <ul className="list-unstyled d-flex flex-column gap-3 mb-0" style={{ fontSize: "0.9rem" }}>
+                  <li className="d-flex justify-content-between align-items-center">
+                    <span style={{ color: studioStyles.textSecondary }}>
+                      <span style={{ color: (manualData.title.length >= 30 && manualData.title.length <= 60) ? "#4CAF50" : "#F44336", marginRight: "8px" }}>●</span>
+                      Title length (30 - 60 chars)
+                    </span>
+                    <span style={{ color: (manualData.title.length >= 30 && manualData.title.length <= 60) ? "#4CAF50" : "#F44336" }}>{manualData.title.length} chars</span>
+                  </li>
+                  <li className="d-flex justify-content-between align-items-center">
+                    <span style={{ color: studioStyles.textSecondary }}>
+                      <span style={{ color: (manualData.metaDescription.length >= 100 && manualData.metaDescription.length <= 160) ? "#4CAF50" : "#F44336", marginRight: "8px" }}>●</span>
+                      Meta description (100 - 160)
+                    </span>
+                    <span style={{ color: (manualData.metaDescription.length >= 100 && manualData.metaDescription.length <= 160) ? "#4CAF50" : "#F44336" }}>{manualData.metaDescription.length} chars</span>
+                  </li>
+                  <li className="d-flex justify-content-between align-items-center">
+                    <span style={{ color: studioStyles.textSecondary }}>
+                      <span style={{ color: seoData.h1Count > 0 ? "#4CAF50" : "#F44336", marginRight: "8px" }}>●</span>
+                      H1 tag (found: {seoData.h1Count})
+                    </span>
+                  </li>
+                  <li className="d-flex justify-content-between align-items-center">
+                    <span style={{ color: studioStyles.textSecondary }}>
+                      <span style={{ color: seoData.h2Count > 0 ? "#4CAF50" : "#F44336", marginRight: "8px" }}>●</span>
+                      H2 headings (found: {seoData.h2Count})
+                    </span>
+                  </li>
+                  <li className="d-flex justify-content-between align-items-center">
+                    <span style={{ color: studioStyles.textSecondary }}>
+                      <span style={{ color: seoData.internalLinksCount > 0 ? "#4CAF50" : "#F44336", marginRight: "8px" }}>●</span>
+                      Internal links ({seoData.internalLinksCount})
+                    </span>
+                  </li>
+                  <li className="d-flex justify-content-between align-items-center">
+                    <span style={{ color: studioStyles.textSecondary }}>
+                      <span style={{ color: seoData.words > 300 ? "#4CAF50" : "#F44336", marginRight: "8px" }}>●</span>
+                      Word count (~{seoData.words})
+                    </span>
+                  </li>
+                </ul>
+              </div>
+
+              {/* INTERNAL LINKS */}
+              <div className="card p-4 shadow-sm border-0 mb-4" style={{ borderRadius: "12px", background: "rgba(30, 41, 59, 0.4)", backdropFilter: "blur(12px)" }}>
+                <div className="d-flex align-items-center mb-3 text-uppercase" style={{ fontSize: "0.85rem", fontWeight: "bold", color: studioStyles.textSecondary, letterSpacing: "1px" }}>
+                  <FaLink className="me-2" style={{ color: "#EAA451" }} /> INTERNAL LINKS
+                </div>
+                {seoData.parsedLinks.length === 0 ? (
+                  <div style={{ fontSize: "0.85rem", color: studioStyles.textSecondary, fontStyle: "italic" }}>No links found in content.</div>
+                ) : (
+                  <ul className="list-unstyled mb-0 d-flex flex-column gap-2">
+                    {seoData.parsedLinks.map((link, i) => (
+                      <li key={i} className="d-flex justify-content-between align-items-center p-2 rounded" style={{ border: `1px solid ${studioStyles.border}`, backgroundColor: "transparent" }}>
+                        <div className="text-truncate" style={{ maxWidth: "200px", fontSize: "0.85rem", color: studioStyles.textSecondary }}>
+                          {link.href}
+                        </div>
+                        <span className="badge glass-input" style={{ color: link.isInternal ? "#4CAF50" : studioStyles.textSecondary, borderColor: link.isInternal ? "#4CAF50" : "rgba(255,255,255,0.1)" }}>
+                          {link.isInternal ? "Internal" : "External"}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+
+              {/* IMAGE UPLOAD & ADVANCED SETTINGS */}
+              <div className="card p-4 shadow-sm border-0 mb-4" style={{ borderRadius: "12px", background: "rgba(30, 41, 59, 0.4)", backdropFilter: "blur(12px)" }}>
+                <div className="d-flex align-items-center mb-3 text-uppercase" style={{ fontSize: "0.85rem", fontWeight: "bold", color: studioStyles.textSecondary, letterSpacing: "1px" }}>
+                  <FaImage className="me-2 text-warning" /> IMAGE UPLOAD
+                </div>
+                <ImageUpload
+                  currentImage={manualData.image}
+                  onUpload={(url) => setManualData((p) => ({ ...p, image: url }))}
+                  label="Upload Featured Image"
+                />
+                
+                <hr style={{ borderColor: studioStyles.border, margin: "24px 0" }} />
+                
+                <div 
+                  className="d-flex align-items-center justify-content-between text-uppercase" 
+                  style={{ fontSize: "0.85rem", fontWeight: "bold", color: studioStyles.textSecondary, letterSpacing: "1px", cursor: "pointer" }}
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                >
+                  <div><FaBars className="me-2" /> ADVANCED SETTINGS</div>
+                  <div style={{ fontSize: "1.2rem" }}>{showAdvanced ? "-" : "+"}</div>
+                </div>
+
+                {showAdvanced && (
+                  <div className="mt-4 pt-3 border-top d-flex flex-column gap-3" style={{ borderColor: studioStyles.border }}>
+                    <div>
+                      <label className="form-label" style={{ color: studioStyles.textSecondary, fontSize: "0.85rem" }}>Category</label>
+                      <input type="text" className="form-control form-control-sm glass-input" name="category" value={manualData.category} onChange={handleManualChange} style={{ backgroundColor: "transparent", border: `1px solid ${studioStyles.border}`, color: "#fff" }} />
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ color: studioStyles.textSecondary, fontSize: "0.85rem" }}>Author</label>
+                      <input type="text" className="form-control form-control-sm glass-input" name="author" value={manualData.author} onChange={handleManualChange} style={{ backgroundColor: "transparent", border: `1px solid ${studioStyles.border}`, color: "#fff" }} />
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ color: studioStyles.textSecondary, fontSize: "0.85rem" }}>Excerpt</label>
+                      <textarea className="form-control form-control-sm glass-input" name="excerpt" value={manualData.excerpt} onChange={handleManualChange} style={{ backgroundColor: "transparent", border: `1px solid ${studioStyles.border}`, color: "#fff", minHeight: "80px" }} />
+                    </div>
+                    {/* Additional fields hidden in layout but preserved in state */}
+                    <div className="d-flex gap-2">
+                       <div className="w-50">
+                          <label className="form-label" style={{ color: studioStyles.textSecondary, fontSize: "0.85rem" }}>Date</label>
+                          <input type="text" className="form-control form-control-sm glass-input" name="date" value={manualData.date} onChange={handleManualChange} style={{ backgroundColor: "transparent", border: `1px solid ${studioStyles.border}`, color: "#fff" }} />
+                       </div>
+                       <div className="w-50">
+                          <label className="form-label" style={{ color: studioStyles.textSecondary, fontSize: "0.85rem" }}>Read Time</label>
+                          <input type="number" className="form-control form-control-sm glass-input" name="readingTime" value={manualData.readingTime} onChange={handleManualChange} style={{ backgroundColor: "transparent", border: `1px solid ${studioStyles.border}`, color: "#fff" }} />
+                       </div>
+                    </div>
+
+                    <hr className="my-2" style={{ borderColor: studioStyles.border }} />
+                    <div style={{ fontSize: "0.85rem", fontWeight: "bold", color: studioStyles.accent, letterSpacing: "1px" }}>SOCIAL SE0 / OG TAGS</div>
+                    
+                    <div>
+                      <label className="form-label" style={{ color: studioStyles.textSecondary, fontSize: "0.85rem" }}>OG Title</label>
+                      <input type="text" className="form-control form-control-sm glass-input" name="ogTitle" value={manualData.ogTitle} onChange={handleManualChange} style={{ backgroundColor: "transparent", border: `1px solid ${studioStyles.border}`, color: "#fff" }} />
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ color: studioStyles.textSecondary, fontSize: "0.85rem" }}>OG Description</label>
+                      <textarea className="form-control form-control-sm glass-input" name="ogDescription" value={manualData.ogDescription} onChange={handleManualChange} style={{ backgroundColor: "transparent", border: `1px solid ${studioStyles.border}`, color: "#fff", minHeight: "60px" }} />
+                    </div>
+                    <div>
+                      <label className="form-label" style={{ color: studioStyles.textSecondary, fontSize: "0.85rem" }}>OG Image URL</label>
+                      <input type="text" className="form-control form-control-sm glass-input" name="ogImage" value={manualData.ogImage} onChange={handleManualChange} style={{ backgroundColor: "transparent", border: `1px solid ${studioStyles.border}`, color: "#fff" }} />
+                    </div>
+
+                    <div>
+                      <label className="form-label" style={{ color: studioStyles.textSecondary, fontSize: "0.85rem" }}>Meta Keywords</label>
+                      {manualData.metaKeywords.map((kw, i) => (
+                        <div key={i} className="d-flex mb-2">
+                          <input
+                            type="text"
+                            className="form-control form-control-sm glass-input me-2"
+                            value={kw}
+                            onChange={(e) => {
+                              const newKw = [...manualData.metaKeywords];
+                              newKw[i] = e.target.value;
+                              setManualData((p) => ({ ...p, metaKeywords: newKw }));
+                            }}
+                            style={{ backgroundColor: "transparent", border: `1px solid ${studioStyles.border}`, color: "#fff" }}
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-danger"
+                            onClick={() => removeManualKeyword(i)}
+                          >
+                            X
+                          </button>
+                        </div>
+                      ))}
                       <button
                         type="button"
-                        className="btn btn-outline-danger"
-                        onClick={() => removeManualKeyword(idx)}
-                        disabled={manualData.metaKeywords.length === 1}
+                        className="btn btn-sm btn-outline-primary w-100"
+                        style={{ border: `1px dashed ${studioStyles.accent}`, color: studioStyles.accent }}
+                        onClick={addManualKeyword}
                       >
-                        <FaTimes />
+                        + Add Keyword
                       </button>
                     </div>
-                  ))}
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-outline-primary"
-                    onClick={addManualKeyword}
-                  >
-                    <FaPlus className="me-1" />Add Keyword
-                  </button>
-                </div>
 
-                <div className="col-12">
-                  <hr className="my-2" />
-                  <p className="fw-semibold text-muted small mb-3">
-                    Open Graph (Social Sharing Preview)
-                  </p>
-                </div>
-
-                <div className="col-12">
-                  <label className="form-label fw-semibold">OG Title</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    name="ogTitle"
-                    value={manualData.ogTitle}
-                    onChange={handleManualChange}
-                    placeholder="Title for Facebook / Twitter cards (defaults to blog title)"
-                  />
-                </div>
-
-                <div className="col-12">
-                  <label className="form-label fw-semibold">OG Description</label>
-                  <textarea
-                    className="form-control"
-                    name="ogDescription"
-                    value={manualData.ogDescription}
-                    onChange={handleManualChange}
-                    rows="2"
-                    placeholder="Description for social sharing cards..."
-                  />
-                </div>
-
-                <div className="col-12">
-                  <label className="form-label fw-semibold">OG Image</label>
-                  <ImageUpload
-                    currentImage={manualData.ogImage}
-                    onUpload={(url) => setManualData((p) => ({ ...p, ogImage: url }))}
-                    label="Upload OG / Social Share Image"
-                  />
-                </div>
+                  </div>
+                )}
               </div>
+
             </div>
           </div>
-
-          {/* ── Save Buttons ─────────────────────────────────────────────── */}
-          <div className="col-12">
-            <div className="card shadow-sm border-0 p-4 bg-light">
-              <div className="d-flex flex-wrap gap-3 align-items-center">
-                <button
-                  type="submit"
-                  className="btn btn-success btn-lg d-flex align-items-center gap-2"
-                  disabled={savingManual}
-                >
-                  {savingManual ? (
-                    <><FaSpinner className="spinner-border spinner-border-sm" />Saving...</>
-                  ) : (
-                    <><FaCheckCircle />Save Blog</>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-outline-secondary btn-lg"
-                  onClick={() => setView("generate")}
-                  disabled={savingManual}
-                >
-                  Cancel
-                </button>
-                <div className="ms-auto">
-                  <span className="badge bg-secondary">
-                    {manualData.published ? "📢 Will be Published" : "📝 Saving as Draft"}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </form>
+        </form>
+      </div>
     </div>
   );
 
@@ -1115,11 +1265,11 @@ function BlogGeneration() {
                 <div className="row g-3">
                   <div className="col-md-12">
                     <label className="form-label fw-semibold">Title</label>
-                    <input type="text" className="form-control" name="title" value={editFormData.title} onChange={handleEditChange} required />
+                    <input type="text" className="form-control glass-input" name="title" value={editFormData.title} onChange={handleEditChange} required />
                   </div>
                   <div className="col-md-6">
                     <label className="form-label fw-semibold">Author</label>
-                    <input type="text" className="form-control" name="author" value={editFormData.author} onChange={handleEditChange} required />
+                    <input type="text" className="form-control glass-input" name="author" value={editFormData.author} onChange={handleEditChange} required />
                   </div>
                   <div className="col-md-6">
                     <label className="form-label fw-semibold">Category</label>
@@ -1129,19 +1279,19 @@ function BlogGeneration() {
                   </div>
                   <div className="col-md-6">
                     <label className="form-label fw-semibold">Slug</label>
-                    <input type="text" className="form-control" name="slug" value={editFormData.slug} onChange={handleEditChange} required />
+                    <input type="text" className="form-control glass-input" name="slug" value={editFormData.slug} onChange={handleEditChange} required />
                   </div>
                   <div className="col-md-3">
                     <label className="form-label fw-semibold">Reading Time (min)</label>
-                    <input type="number" className="form-control" name="readingTime" value={editFormData.readingTime} onChange={handleEditChange} required />
+                    <input type="number" className="form-control glass-input" name="readingTime" value={editFormData.readingTime} onChange={handleEditChange} required />
                   </div>
                   <div className="col-md-3">
                     <label className="form-label fw-semibold">Date</label>
-                    <input type="text" className="form-control" name="date" value={editFormData.date} onChange={handleEditChange} required />
+                    <input type="text" className="form-control glass-input" name="date" value={editFormData.date} onChange={handleEditChange} required />
                   </div>
                   <div className="col-md-12">
                     <label className="form-label fw-semibold">Excerpt</label>
-                    <textarea className="form-control" name="excerpt" value={editFormData.excerpt} onChange={handleEditChange} rows="3" required />
+                    <textarea className="form-control glass-input" name="excerpt" value={editFormData.excerpt} onChange={handleEditChange} rows="3" required />
                   </div>
                   <div className="col-md-12">
                     <label className="form-label fw-semibold">Featured Image</label>
@@ -1166,7 +1316,7 @@ function BlogGeneration() {
               <div className="card shadow-sm border-0 p-4">
                 <h5 className="fw-bold mb-4">Content</h5>
                 <textarea
-                  className="form-control"
+                  className="form-control glass-input"
                   name="content"
                   value={editFormData.content}
                   onChange={handleEditChange}
@@ -1229,13 +1379,13 @@ function BlogGeneration() {
                 <div className="row g-3">
                   <div className="col-md-12">
                     <label className="form-label fw-semibold">Meta Description</label>
-                    <textarea className="form-control" name="metaDescription" value={editFormData.metaDescription} onChange={handleEditChange} rows="2" required />
+                    <textarea className="form-control glass-input" name="metaDescription" value={editFormData.metaDescription} onChange={handleEditChange} rows="2" required />
                   </div>
                   <div className="col-md-12">
                     <label className="form-label fw-semibold">Meta Keywords</label>
                     {editFormData.metaKeywords.map((keyword, index) => (
                       <div key={index} className="input-group mb-2">
-                        <input type="text" className="form-control" name={`metaKeywords-${index}`} value={keyword} onChange={handleEditChange} placeholder="Keyword" />
+                        <input type="text" className="form-control glass-input" name={`metaKeywords-${index}`} value={keyword} onChange={handleEditChange} placeholder="Keyword" />
                         <button type="button" className="btn btn-outline-danger" onClick={() => removeKeywordField(index)}><FaTimes /></button>
                       </div>
                     ))}
@@ -1245,15 +1395,15 @@ function BlogGeneration() {
                   </div>
                   <div className="col-md-12">
                     <label className="form-label fw-semibold">OG Title</label>
-                    <input type="text" className="form-control" name="ogTitle" value={editFormData.ogTitle} onChange={handleEditChange} required />
+                    <input type="text" className="form-control glass-input" name="ogTitle" value={editFormData.ogTitle} onChange={handleEditChange} required />
                   </div>
                   <div className="col-md-12">
                     <label className="form-label fw-semibold">OG Description</label>
-                    <textarea className="form-control" name="ogDescription" value={editFormData.ogDescription} onChange={handleEditChange} rows="2" required />
+                    <textarea className="form-control glass-input" name="ogDescription" value={editFormData.ogDescription} onChange={handleEditChange} rows="2" required />
                   </div>
                   <div className="col-md-12">
                     <label className="form-label fw-semibold">OG Image URL</label>
-                    <input type="url" className="form-control" name="ogImage" value={editFormData.ogImage} onChange={handleEditChange} required />
+                    <input type="url" className="form-control glass-input" name="ogImage" value={editFormData.ogImage} onChange={handleEditChange} required />
                     {editFormData.ogImage && (
                       <img src={editFormData.ogImage} alt="OG Preview" className="mt-2 rounded" style={{ maxWidth: "300px", height: "auto" }} />
                     )}
