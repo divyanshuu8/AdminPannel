@@ -96,3 +96,9 @@ body {
   backdrop-filter: blur(16px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
+
+/* Compact nav links */
+.lp-nav-link {
+  font-size: 0.78rem !important;
+  white-space: nowrap;
+}

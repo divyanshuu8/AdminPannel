@@ -108,7 +108,7 @@ const emptyManualData = () => ({
 
 // ══════════════════════════════════════════════════════════════════════════════
 function BlogGeneration() {
-  const [view, setView] = useState("generate"); // 'generate','manual','list','edit','view'
+  const [view, setView] = useState("generate"); // 'generate','manual','list','edit','view','landingPage'
   const [formData, setFormData] = useState({ topic: "", keywords: "", category: "" });
 
   const [loading, setLoading] = useState(false);
@@ -131,6 +131,12 @@ function BlogGeneration() {
   const quillRef = useRef(null);
   const contentImageInputRef = useRef(null);
   const htmlEditorRef = useRef(null);
+
+  // Landing Page state
+  const [landingHtml, setLandingHtml] = useState("");
+  const [landingSlug, setLandingSlug] = useState("");
+  const [landingPreviewKey, setLandingPreviewKey] = useState(0);
+  const [savingLanding, setSavingLanding] = useState(false);
 
   const categories = [
     "Bedroom Design Ideas",
@@ -719,6 +725,15 @@ function BlogGeneration() {
         </div>
 
         <div className="d-flex align-items-center gap-3">
+          <button
+            type="button"
+            className="btn btn-sm"
+            style={{ color: "#f59e0b", backgroundColor: "rgba(245,158,11,0.12)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: "6px", fontWeight: "600", fontSize: "0.78rem", padding: "4px 12px" }}
+            onClick={() => setView("landingPage")}
+            title="Open Landing Page Editor"
+          >
+            🚀 Landing Page
+          </button>
           <button className="btn btn-sm" style={{ color: studioStyles.textSecondary, backgroundColor: "transparent", border: "none" }} onClick={() => setView("list")}>
             Cancel
           </button>
@@ -1100,6 +1115,206 @@ function BlogGeneration() {
   );
 
   // ══════════════════════════════════════════════════════════════════════════
+  // RENDER: Landing Page View
+  // ══════════════════════════════════════════════════════════════════════════
+  const defaultLandingHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Landing Page</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #fff; color: #1a1a2e; }
+    .hero { background: linear-gradient(135deg, #c8a96e 0%, #1a1a2e 100%); color: #fff; text-align: center; padding: 80px 24px; }
+    .hero h1 { font-size: 2.5rem; margin-bottom: 16px; }
+    .hero p { font-size: 1.1rem; opacity: 0.85; }
+    .cta { display: inline-block; margin-top: 28px; padding: 14px 36px; background: #fff; color: #1a1a2e; border-radius: 50px; font-weight: 700; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <section class="hero">
+    <h1>Welcome to Interiorji</h1>
+    <p>Premium Interior Design for your dream home</p>
+    <a href="#" class="cta">Get Started</a>
+  </section>
+</body>
+</html>`;
+
+  const handleLandingPreview = () => {
+    setLandingPreviewKey(k => k + 1);
+  };
+
+  const handleSaveLandingPage = async () => {
+    if (!landingHtml.trim()) { toast.error("HTML code cannot be empty"); return; }
+    if (!landingSlug.trim()) { toast.error("Slug is required (e.g. my-landing-page)"); return; }
+    const finalSlug = slugify(landingSlug);
+    setSavingLanding(true);
+    try {
+      await addDoc(collection(db, "landingPages"), {
+        html: landingHtml,
+        slug: finalSlug,
+        url: `lp/${finalSlug}`,
+        createdAt: new Date(),
+        published: true,
+      });
+      toast.success(`Landing page uploaded! Live at: /lp/${finalSlug} 🚀`);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to upload landing page");
+    } finally {
+      setSavingLanding(false);
+    }
+  };
+
+  const renderLandingPageView = () => (
+    <div className="w-100 m-0 p-0" style={{ backgroundColor: "#0f172a", color: "#f8fafc", minHeight: "100vh", fontFamily: "'Inter', sans-serif" }}>
+      {/* Header */}
+      <div className="d-flex justify-content-between align-items-center px-4 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.1)", backgroundColor: "rgba(15,23,42,0.95)", backdropFilter: "blur(12px)", flexWrap: "wrap", gap: "12px" }}>
+        <div className="d-flex align-items-center gap-3">
+          <button
+            type="button"
+            className="btn btn-sm"
+            style={{ color: "#94a3b8", backgroundColor: "transparent", border: "none" }}
+            onClick={() => setView("manual")}
+          >
+            <FaArrowLeft className="me-2" /> Back to Studio
+          </button>
+          <div style={{ width: "1px", height: "24px", backgroundColor: "rgba(255,255,255,0.1)" }} />
+          <h2 className="m-0" style={{ fontSize: "1.1rem", fontWeight: "700", color: "#fff" }}>
+            <span style={{ color: "#f59e0b" }}>🚀</span> Landing Page Editor
+          </h2>
+        </div>
+
+        {/* Slug input + URL preview */}
+        <div className="d-flex align-items-center gap-2" style={{ flex: "1", maxWidth: "420px" }}>
+          <div style={{ position: "relative", flex: 1 }}>
+            <span style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", fontSize: "0.75rem", color: "#475569", pointerEvents: "none", whiteSpace: "nowrap" }}>
+              /lp/
+            </span>
+            <input
+              type="text"
+              value={landingSlug}
+              onChange={(e) => setLandingSlug(slugify(e.target.value) || e.target.value.toLowerCase().replace(/\s+/g, "-"))}
+              placeholder="your-page-slug"
+              style={{
+                width: "100%",
+                paddingLeft: "38px",
+                paddingRight: "10px",
+                paddingTop: "6px",
+                paddingBottom: "6px",
+                backgroundColor: "rgba(30,41,59,0.8)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: "6px",
+                color: "#f8fafc",
+                fontSize: "0.85rem",
+                outline: "none",
+              }}
+            />
+          </div>
+          {landingSlug && (
+            <span style={{ fontSize: "0.72rem", color: "#22c55e", whiteSpace: "nowrap", backgroundColor: "rgba(34,197,94,0.1)", border: "1px solid rgba(34,197,94,0.25)", borderRadius: "4px", padding: "3px 8px" }}>
+              website/lp/{slugify(landingSlug) || landingSlug}
+            </span>
+          )}
+        </div>
+
+        <div className="d-flex align-items-center gap-2">
+          <button
+            type="button"
+            className="btn btn-sm"
+            style={{ backgroundColor: "rgba(59,130,246,0.15)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.3)", borderRadius: "6px" }}
+            onClick={handleLandingPreview}
+          >
+            <FaEye className="me-2" /> Preview
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm"
+            style={{ backgroundColor: "rgba(245,158,11,0.15)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.3)", borderRadius: "6px", fontWeight: "600" }}
+            onClick={handleSaveLandingPage}
+            disabled={savingLanding}
+          >
+            {savingLanding ? (<><FaSpinner className="spinner-border spinner-border-sm me-2" />Uploading...</>) : (<><FaExternalLinkAlt className="me-2" />Upload Landing Page</>)}
+          </button>
+        </div>
+      </div>
+
+      {/* Two-panel layout */}
+      <div className="d-flex" style={{ height: "calc(100vh - 62px)" }}>
+        {/* Left: Code Editor */}
+        <div className="d-flex flex-column" style={{ width: "50%", borderRight: "1px solid rgba(255,255,255,0.08)" }}>
+          <div className="px-4 py-2 d-flex justify-content-between align-items-center" style={{ backgroundColor: "rgba(15,23,42,0.7)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+            <span style={{ fontSize: "0.78rem", fontWeight: "700", color: "#64748b", letterSpacing: "1px" }}>HTML CODE</span>
+            <button
+              type="button"
+              className="btn btn-sm"
+              style={{ fontSize: "0.75rem", color: "#64748b", backgroundColor: "transparent", border: "1px solid rgba(255,255,255,0.1)", borderRadius: "4px" }}
+              onClick={() => setLandingHtml(defaultLandingHtml)}
+            >
+              Load Template
+            </button>
+          </div>
+          <textarea
+            className="form-control font-monospace flex-grow-1"
+            style={{
+              border: "none",
+              borderRadius: "0",
+              backgroundColor: "#0d1117",
+              color: "#A9DC76",
+              fontSize: "13.5px",
+              lineHeight: "1.65",
+              outline: "none",
+              boxShadow: "none",
+              resize: "none",
+              padding: "20px 24px",
+            }}
+            value={landingHtml}
+            onChange={(e) => setLandingHtml(e.target.value)}
+            placeholder={`Paste your full HTML code here...\n\nExample:\n<!DOCTYPE html>\n<html>\n  <body>\n    <h1>My Landing Page</h1>\n  </body>\n</html>`}
+            spellCheck="false"
+          />
+        </div>
+
+        {/* Right: Live Preview */}
+        <div className="d-flex flex-column" style={{ width: "50%" }}>
+          <div className="px-4 py-2 d-flex justify-content-between align-items-center" style={{ backgroundColor: "rgba(15,23,42,0.7)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+            <span style={{ fontSize: "0.78rem", fontWeight: "700", color: "#64748b", letterSpacing: "1px" }}>LIVE PREVIEW — as shown on main website</span>
+            <div className="d-flex align-items-center gap-2">
+              <span style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: "#ef4444", display: "inline-block" }} />
+              <span style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: "#f59e0b", display: "inline-block" }} />
+              <span style={{ width: "10px", height: "10px", borderRadius: "50%", backgroundColor: "#22c55e", display: "inline-block" }} />
+            </div>
+          </div>
+          <div style={{ flex: 1, backgroundColor: "#1e293b", position: "relative" }}>
+            {landingHtml.trim() ? (
+              <iframe
+                key={landingPreviewKey}
+                title="Landing Page Preview"
+                srcDoc={landingHtml}
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  border: "none",
+                  backgroundColor: "#fff",
+                }}
+                sandbox="allow-scripts allow-same-origin"
+              />
+            ) : (
+              <div className="d-flex flex-column align-items-center justify-content-center h-100" style={{ color: "#475569" }}>
+                <div style={{ fontSize: "3rem", marginBottom: "16px", opacity: 0.4 }}>🖥️</div>
+                <p style={{ fontSize: "0.95rem", textAlign: "center", maxWidth: "220px", lineHeight: 1.6 }}>
+                  Paste your HTML on the left and click <strong style={{ color: "#3b82f6" }}>Preview</strong> to see it here
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ══════════════════════════════════════════════════════════════════════════
   // RENDER: Blog List View
   // ══════════════════════════════════════════════════════════════════════════
   const renderListView = () => (
@@ -1432,11 +1647,12 @@ function BlogGeneration() {
   // ══════════════════════════════════════════════════════════════════════════
   return (
     <div className="min-vh-100 bg-light p-4 p-md-5">
-      {view === "generate" && renderGenerateView()}
-      {view === "manual"   && renderManualBlogView()}
-      {view === "list"     && renderListView()}
-      {view === "edit"     && renderEditView()}
-      {view === "view"     && renderViewBlog()}
+      {view === "generate"    && renderGenerateView()}
+      {view === "manual"      && renderManualBlogView()}
+      {view === "list"        && renderListView()}
+      {view === "edit"        && renderEditView()}
+      {view === "view"        && renderViewBlog()}
+      {view === "landingPage" && renderLandingPageView()}
     </div>
   );
 }

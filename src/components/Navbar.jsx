@@ -58,9 +58,9 @@ function Navbar() {
 
   // 🔹 Common button styling
   const linkClass = (path) =>
-    `btn rounded-pill text-center px-3 py-2 ${
+    `btn rounded-pill text-center px-2 py-1 ${
       location.pathname === path ? "btn-primary shadow-sm" : "text-light"
-    }`;
+    }` + " lp-nav-link";
 
   return (
     <nav className="shadow-sm position-sticky top-0 w-100 z-3 nav-glass">
@@ -129,6 +129,12 @@ function Navbar() {
                   >
                     Blog Generation
                   </Link>
+                  <Link
+                    to="/landing-pages"
+                    className={linkClass("/landing-pages")}
+                  >
+                    Landing Pages
+                  </Link>
                 </>
               )}
 
@@ -150,6 +156,12 @@ function Navbar() {
                     className={linkClass("/blog-generation")}
                   >
                     Blog Generation
+                  </Link>
+                  <Link
+                    to="/landing-pages"
+                    className={linkClass("/landing-pages")}
+                  >
+                    Landing Pages
                   </Link>
                 </>
               )}

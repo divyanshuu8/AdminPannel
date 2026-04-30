@@ -10,6 +10,7 @@ import { Toaster } from "react-hot-toast"; // ✅ Import Toaster
 import PartnerManagement from "./components/PartnerManage";
 import Analytics from "./components/Analytics";
 import BlogGeneration from "./components/BlogGeneration";
+import LandingPageManage from "./components/LandingPageManage";
 
 function App() {
   return (
@@ -64,6 +65,14 @@ function App() {
           element={
             <ProtectedRoute>
               <BlogGeneration />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/landing-pages"
+          element={
+            <ProtectedRoute>
+              <LandingPageManage />
             </ProtectedRoute>
           }
         />
